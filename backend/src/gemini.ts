@@ -1,85 +1,201 @@
 import { GoogleGenAI } from '@google/genai';
-import { PathogenProfile, PeptideDesignParams } from '@/types/peptide';
+import {
+  ClosedLoopOptimizationSummary,
+  PathogenProfile,
+  PeptideDesignParams
+} from './types/peptide';
+import {
+  AMP_SYSTEM_INSTRUCTION,
+  buildPeptidePrompt,
+  normalizeAiPeptideOutput,
+  RawAiPeptideOutput
+} from './ai/prompt-utils';
+import { generateWithGroq, ProviderGenerationResult } from './ai/groq-client';
+import { evaluatePeptideFitness, evolvePeptideSequence } from './ai/mutation-optimizer';
 
-export interface RawAiPeptideOutput {
-  candidateName: string;
-  sequence: string;
-  molecularRationale: string;
-  membraneAffinityExplanation: string;
+export type { RawAiPeptideOutput } from './ai/prompt-utils';
+
+export interface SynthesizedPeptideResult extends ProviderGenerationResult {
+  optimizationSummary?: ClosedLoopOptimizationSummary;
 }
 
-const SYSTEM_INSTRUCTION = `You are SynthiaBio, a world-class computational biophysicist and structural biochemist specializing in de novo Antimicrobial Peptide (AMP) design.
-Your task is to engineer novel therapeutic alpha-helical peptide sequences specifically optimized to disrupt the lipid membrane of target bacterial pathogens while minimizing mammalian hemolytic toxicity.
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
-Key Biophysical Rules for AMP Design:
-1. Net Charge: Alternate cationic residues (Lysine 'K', Arginine 'R') to achieve an amphipathic partition that selectively binds to negative bacterial phospholipids (Phosphatidylglycerol/Cardiolipin) via electrostatic attraction.
-2. Amphipathic Helix: Arrange hydrophobic residues (Leucine 'L', Isoleucine 'I', Valine 'V', Phenylalanine 'F', Tryptophan 'W') along one face of the 3.6-residue-per-turn alpha-helix to bury into the hydrophobic membrane core.
-3. Length: Strictly adhere to the requested sequence length.
-4. Valid Amino Acids: Use ONLY the 20 standard IUPAC single-letter codes: A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y. (Prefer avoiding Cysteine 'C' unless forming disulfide bridges).
+async function callGeminiProvider(
+  pathogen: PathogenProfile,
+  params: PeptideDesignParams,
+  timeoutMs = 10000
+): Promise<ProviderGenerationResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
 
-Return output STRICTLY in valid JSON matching this schema:
-{
-  "candidateName": "Descriptive name (e.g. Synthia-MRSA-Toroid-1)",
-  "sequence": "EXACT single-letter amino acid sequence with exact requested length",
-  "molecularRationale": "Detailed biophysical explanation of residue placement and pore formation mechanism",
-  "membraneAffinityExplanation": "Analysis of electrostatic and hydrophobic binding to the specific target pathogen membrane"
-}`;
+  const ai = new GoogleGenAI({ apiKey });
+  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const response = await ai.models.generateContent({
+    model,
+    contents: buildPeptidePrompt(pathogen, params),
+    config: {
+      systemInstruction: AMP_SYSTEM_INSTRUCTION,
+      responseMimeType: 'application/json',
+      temperature: 0.7,
+      abortSignal: AbortSignal.timeout(timeoutMs)
+    }
+  });
 
+  const text = response.text?.trim() || '';
+  return {
+    output: normalizeAiPeptideOutput(text, pathogen, params.sequenceLength),
+    provider: 'gemini',
+    model
+  };
+}
+
+async function selectCandidateByProvider(
+  pathogen: PathogenProfile,
+  params: PeptideDesignParams
+): Promise<ProviderGenerationResult> {
+  const preference = params.provider || 'auto';
+
+  if (preference === 'gemini') {
+    try {
+      return await callGeminiProvider(pathogen, params, 12000);
+    } catch (err) {
+      console.error('[SynthiaBio Gemini] Error, falling back to heuristic:', err);
+      return { output: generateHeuristicPeptide(pathogen, params), provider: 'heuristic', model: 'deterministic-motif' };
+    }
+  }
+
+  if (preference === 'groq') {
+    try {
+      return await generateWithGroq(pathogen, params);
+    } catch (err) {
+      console.error('[SynthiaBio Groq] Error, falling back to heuristic:', err);
+      return { output: generateHeuristicPeptide(pathogen, params), provider: 'heuristic', model: 'deterministic-motif' };
+    }
+  }
+
+  if (preference === 'dual') {
+    const settled = await Promise.allSettled([
+      callGeminiProvider(pathogen, params),
+      generateWithGroq(pathogen, params)
+    ]);
+
+    const viable = settled
+      .filter((r): r is PromiseFulfilledResult<ProviderGenerationResult> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    if (viable.length === 1) {
+      return viable[0];
+    }
+
+    if (viable.length > 1) {
+      return viable.sort((a, b) => {
+        const evalA = evaluatePeptideFitness(a.output.sequence, pathogen);
+        const evalB = evaluatePeptideFitness(b.output.sequence, pathogen);
+        return evalB.compositeScore - evalA.compositeScore;
+      })[0];
+    }
+
+    console.warn('[SynthiaBio Dual] Both Gemini and Groq failed; using heuristic fallback.');
+    return { output: generateHeuristicPeptide(pathogen, params), provider: 'heuristic', model: 'deterministic-motif' };
+  }
+
+  // Default 'auto' cascade: Gemini (7.5s cap) -> Groq -> Deterministic Heuristic
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      return await callGeminiProvider(pathogen, params, 7500);
+    } catch (geminiErr) {
+      console.warn('[SynthiaBio Router] Gemini failed/timed out, failing over to Groq:', geminiErr);
+    }
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    try {
+      return await generateWithGroq(pathogen, params);
+    } catch (groqErr) {
+      console.warn('[SynthiaBio Router] Groq failover also failed, using heuristic:', groqErr);
+    }
+  }
+
+  return {
+    output: generateHeuristicPeptide(pathogen, params),
+    provider: 'heuristic',
+    model: 'deterministic-motif'
+  };
+}
+
+function applyClosedLoopRefinement(
+  selected: ProviderGenerationResult,
+  pathogen: PathogenProfile,
+  enabled: boolean
+): SynthesizedPeptideResult {
+  if (!enabled) {
+    return selected;
+  }
+
+  const initialEval = evaluatePeptideFitness(selected.output.sequence, pathogen);
+  const { metrics } = initialEval;
+  const [minCharge, maxCharge] = pathogen.suggestedChargeRange;
+
+  const needsRefinement =
+    metrics.predictedHemolysisRisk !== 'Low' ||
+    metrics.therapeuticSelectivityIndex < 90 ||
+    metrics.netCharge < minCharge ||
+    metrics.netCharge > maxCharge ||
+    metrics.hydrophobicMoment < 0.4;
+
+  if (!needsRefinement) {
+    return selected;
+  }
+
+  const trajectory = evolvePeptideSequence(selected.output.sequence, pathogen, 2);
+  if (trajectory.appliedMutations.length === 0 || trajectory.finalFitness <= trajectory.initialFitness) {
+    return selected;
+  }
+
+  const refinementNote = `Closed-loop refinement applied ${trajectory.appliedMutations.join(', ')}: selectivity ${trajectory.initialMetrics.therapeuticSelectivityIndex} -> ${trajectory.finalMetrics.therapeuticSelectivityIndex}, hemolysis ${trajectory.initialMetrics.predictedHemolysisRisk} -> ${trajectory.finalMetrics.predictedHemolysisRisk}.`;
+
+  return {
+    ...selected,
+    output: {
+      ...selected.output,
+      sequence: trajectory.finalSequence,
+      molecularRationale: `${selected.output.molecularRationale} [${refinementNote}]`
+    },
+    optimizationSummary: {
+      applied: true,
+      originalSequence: trajectory.originalSequence,
+      originalSelectivity: trajectory.initialMetrics.therapeuticSelectivityIndex,
+      originalHemolysisRisk: trajectory.initialMetrics.predictedHemolysisRisk,
+      appliedMutations: trajectory.appliedMutations,
+      notes: refinementNote
+    }
+  };
+}
+
+/**
+ * Orchestrates multi-provider AMP synthesis (Gemini + Groq + Heuristic fallback)
+ * followed by deterministic closed-loop biophysical optimization.
+ */
+export async function synthesizePeptideWithAI(
+  pathogen: PathogenProfile,
+  params: PeptideDesignParams
+): Promise<SynthesizedPeptideResult> {
+  const selected = await selectCandidateByProvider(pathogen, params);
+  return applyClosedLoopRefinement(selected, pathogen, params.autoOptimize !== false);
+}
+
+/**
+ * Backwards-compatible helper returning raw peptide fields from AI generation.
+ */
 export async function generatePeptideWithGemini(
   pathogen: PathogenProfile,
   params: PeptideDesignParams
 ): Promise<RawAiPeptideOutput> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    console.warn('GEMINI_API_KEY is not set. Generating using deterministic biophysical heuristic.');
-    return generateHeuristicPeptide(pathogen, params);
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-
-    const prompt = `Design a de-novo antimicrobial peptide with the following specifications:
-- Target Pathogen: ${pathogen.name} (${pathogen.scientificName})
-- Gram Type: Gram-${pathogen.gramType}
-- Target Membrane Surface Potential: ${pathogen.membraneCharacteristics.outerMembraneCharge} mV
-- Membrane Characteristics: ${pathogen.membraneCharacteristics.barrierDescription}
-- Sequence Length: EXACTLY ${params.sequenceLength} amino acids
-- Membrane Disruption Mechanism: ${params.poreMechanism} pore model
-- Target Safety Profile: ${params.safetyThreshold === 'high-selectivity' ? 'Maximum Selectivity (Extremely low hemolysis against human erythrocytes)' : 'Balanced Potency and Permeability'}
-
-Respond ONLY with raw valid JSON. Do not wrap in markdown quotes if possible.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        temperature: 0.7
-      }
-    });
-
-    const text = response.text?.trim() || '';
-    const cleanJson = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '');
-    const parsed = JSON.parse(cleanJson) as RawAiPeptideOutput;
-
-    // Validate sequence length and valid characters
-    let seq = (parsed.sequence || '').toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
-    if (seq.length !== params.sequenceLength) {
-      seq = adjustSequenceLength(seq, params.sequenceLength);
-    }
-
-    return {
-      candidateName: parsed.candidateName || `Synthia-${pathogen.id.toUpperCase()}-1`,
-      sequence: seq,
-      molecularRationale: parsed.molecularRationale || 'Engineered amphipathic alpha-helix optimized for bacterial membrane penetration.',
-      membraneAffinityExplanation: parsed.membraneAffinityExplanation || `Electrostatic binding to negative membrane charge of ${pathogen.name}.`
-    };
-  } catch (error) {
-    console.error('Gemini generation error, falling back to heuristic model:', error);
-    return generateHeuristicPeptide(pathogen, params);
-  }
+  const result = await synthesizePeptideWithAI(pathogen, { ...params, provider: params.provider || 'auto' });
+  return result.output;
 }
 
 /**
@@ -91,8 +207,7 @@ export function generateHeuristicPeptide(
   params: PeptideDesignParams
 ): RawAiPeptideOutput {
   const length = params.sequenceLength;
-  // Amphipathic pattern: K-W-K-L-F-K-K-I-E-K-V-G-Q-N-V-R-D-G
-  const motif = ['K', 'W', 'K', 'L', 'F', 'K', 'K', 'I', 'V', 'K', 'L', 'L', 'K', 'W', 'K', 'K', 'V', 'L', 'K', 'R', 'F', 'K', 'I', 'L', 'K', 'W', 'K', 'L'];
+  const motif = ['K', 'W', 'K', 'L', 'F', 'K', 'K', 'I', 'V', 'K', 'L', 'L', 'K', 'S', 'K', 'K', 'V', 'L', 'K', 'R', 'A', 'K', 'I', 'L', 'K', 'Q', 'K', 'L'];
   let seq = '';
   for (let i = 0; i < length; i++) {
     seq += motif[i % motif.length];
@@ -101,20 +216,7 @@ export function generateHeuristicPeptide(
   return {
     candidateName: `Synthia-${pathogen.id.toUpperCase()}-Opt${length}`,
     sequence: seq,
-    molecularRationale: `Generated using an optimized (i, i+3, i+4) amphipathic alpha-helical repeat. Alternating Lysine (K) residues align along the polar azimuth at 100-degree pitch intervals to destabilize ${pathogen.name} lipid packing while bulky hydrophobic Trp/Phe residues insert into the hydrocarbon core.`,
+    molecularRationale: `Generated using an optimized (i, i+3, i+4) amphipathic alpha-helical repeat. Alternating Lysine (K) residues align along the polar azimuth at 100-degree pitch intervals to destabilize ${pathogen.name} lipid packing while hydrophobic Leu/Ile/Trp residues insert into the hydrocarbon core.`,
     membraneAffinityExplanation: `Targets the ${pathogen.membraneCharacteristics.outerMembraneCharge} mV outer potential of ${pathogen.scientificName} via high polycationic field density, initiating lipid headgroup displacement.`
   };
-}
-
-function adjustSequenceLength(seq: string, targetLength: number): string {
-  if (seq.length > targetLength) {
-    return seq.slice(0, targetLength);
-  }
-  const filler = ['K', 'L', 'A', 'K', 'L', 'A', 'K'];
-  let i = 0;
-  while (seq.length < targetLength) {
-    seq += filler[i % filler.length];
-    i++;
-  }
-  return seq;
 }

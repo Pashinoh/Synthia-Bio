@@ -4,9 +4,9 @@
 ### Autonomous Generative AI Antimicrobial Peptide (AMP) Designer & Real-Time 3D Molecular Studio
 
 [![STEM2Connect Hackathon](https://img.shields.io/badge/Hackathon-STEM2Connect%202026-00F0FF?style=for-the-badge&logo=devpost)](https://stem2connect-online-hackathon.devpost.com/)
-[![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/Frontend-Next.js%2016-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![Express](https://img.shields.io/badge/Backend-Express%20TS-000000?style=for-the-badge&logo=express)](https://expressjs.com/)
-[![Google Gemini 1.5](https://img.shields.io/badge/AI%20Core-Gemini%201.5%20Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/)
+[![Gemini Flash-Lite](https://img.shields.io/badge/AI%20Core-Gemini%203.5%20Flash--Lite-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/)
 [![WebGL 3D](https://img.shields.io/badge/3D%20Engine-3Dmol.js%20WebGL-10B981?style=for-the-badge)](https://3dmol.org/)
 [![License MIT](https://img.shields.io/badge/License-MIT-amber?style=for-the-badge)](LICENSE)
 
@@ -37,7 +37,7 @@ Unlike conventional antibiotics that inhibit specific bacterial enzymes, **Antim
 **SynthiaBio** is an autonomous in-silico peptide engineering platform that accelerates de novo drug discovery from **years to seconds**:
 
 1. **Target-Specific Pathogen Intelligence:** Designed around WHO Critical and High Priority pathogens (MRSA, *Pseudomonas aeruginosa*, *Acinetobacter baumannii*, *Klebsiella pneumoniae*).
-2. **Generative Molecular Sequence Design:** Uses Google Gemini 1.5 Flash to synthesize novel amino acid sequences optimized for specific membrane charge densities.
+2. **Generative Molecular Sequence Design:** Uses Google Gemini (`gemini-3.5-flash-lite` via `@google/genai`) to synthesize novel amino acid sequences optimized for specific membrane charge densities.
 3. **Zero-Hallucination Biophysical Scoring:** Mathematical verification using the **Eisenberg Consensus Scale** (Net Charge, Hydrophobic Moment, Isoelectric Point, Boman Index, and Hemolysis Risk).
 4. **Client-Side Real-Time 3D WebGL Studio:** Renders interactive alpha-helical ribbon conformations, electrostatic charge mappings, and hydrophobic surface envelopes directly in the browser via `3Dmol.js`—**zero GPU server overhead**.
 5. **Lab-Ready Artifact Export:** Generates standardized `.PDB` 3D coordinate files, FASTA biological records, and Solid-Phase Peptide Synthesis (SPPS) laboratory protocols.
@@ -58,7 +58,7 @@ Synthia-Bio/
 ├── 👑 backend/                      # Core AI & Biophysical Math Engine
 │   ├── src/server.ts                # Express API (:5000)
 │   ├── src/bio-engine/              # Eisenberg calculations & PDB 3D synthesizer
-│   ├── src/gemini.ts                # Google Gemini 1.5 Flash client
+│   ├── src/gemini.ts                # Google Gemini client (`@google/genai`)
 │   └── package.json
 │
 ├── blueprint/                       # 6-Pillar Master Technical Blueprint
@@ -79,7 +79,7 @@ flowchart TD
     end
 
     subgraph BackendAPI ["👑 Backend (Express + Gemini + Bio-Math)"]
-        B -->|POST /api/generate| C["Gemini 1.5 Flash Molecular Reasoning"]
+        B -->|POST /api/generate| C["Gemini Molecular Reasoning"]
         C --> D["Deterministic Biophysical Calculation Engine"]
         D --> E["Alpha-Helix 3D Coordinate Synthesizer"]
         E -->|JSON Payload + PDB String| F
@@ -125,10 +125,10 @@ npm run dev:all
 
 ## 👥 Team Structure & Roles (Single Branch: `main`)
 
-| Member | Domain Folder | Core Ownership |
+| Member | Domain Module (Backend-First) | Core Ownership |
 |---|---|---|
-| **Pashinoh (Ketua)** | **`backend/`** | Express API, Gemini 1.5 structured prompt engineering, Eisenberg calculation formulas, PDB 3D synthesizer, Devpost submission. |
-| **Team Partner** | **`frontend/`** | 3Dmol WebGL canvas, Next.js UI layout, Recharts radar charts, responsive styling, demo video production. |
+| **Irfan (Ketua)** | **`backend/src/` (`ai/`, `benchmarks/`, `gemini.ts`)** | Express API orchestration, Gemini structured prompt engineering, closed-loop mutation optimizer, clinical benchmarks, Devpost submission. |
+| **Pas / Pashinoh** | **`backend/src/` (`bio-engine/`, `validators/`)** | Eisenberg biophysical calculators, 2D helical wheel projection, PDB 3D coordinate synthesizer, protease degradation validator. |
 
 ---
 

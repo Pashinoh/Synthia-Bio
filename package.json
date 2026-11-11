@@ -10,6 +10,7 @@
     "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,emerald\" \"npm run dev:be\" \"npm run dev:fe\"",
     "build": "npm --prefix frontend run build",
     "build:be": "npm --prefix backend run build",
+    "test:be": "npm --prefix backend test",
     "install:all": "npm --prefix frontend install && npm --prefix backend install"
   },
   "devDependencies": {

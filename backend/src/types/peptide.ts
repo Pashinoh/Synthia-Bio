@@ -3,6 +3,8 @@ export type SafetyThreshold = 'high-selectivity' | 'balanced';
 export type HemolysisRisk = 'Low' | 'Moderate' | 'High';
 export type GramType = 'positive' | 'negative';
 export type WHOPriority = 'Critical' | 'High' | 'Medium';
+export type AIProviderPreference = 'auto' | 'gemini' | 'groq' | 'dual';
+export type GenerationSource = 'gemini' | 'groq' | 'heuristic';
 
 export interface PathogenProfile {
   id: string;
@@ -26,6 +28,8 @@ export interface PeptideDesignParams {
   sequenceLength: number; // 12 - 28
   poreMechanism: PoreMechanism;
   safetyThreshold: SafetyThreshold;
+  provider?: AIProviderPreference;
+  autoOptimize?: boolean;
 }
 
 export interface BiophysicalMetrics {
@@ -56,6 +60,15 @@ export interface SynthesisProtocol {
   storageCondition: string; // e.g. "Lyophilized powder at -20°C"
 }
 
+export interface ClosedLoopOptimizationSummary {
+  applied: boolean;
+  originalSequence: string;
+  originalSelectivity: number;
+  originalHemolysisRisk: HemolysisRisk;
+  appliedMutations: string[];
+  notes: string;
+}
+
 export interface GeneratedPeptide {
   id: string;
   name: string;
@@ -65,6 +78,9 @@ export interface GeneratedPeptide {
   mechanism: PoreMechanism;
   molecularRationale: string;
   membraneAffinityExplanation: string;
+  aiProviderUsed?: GenerationSource;
+  aiModelUsed?: string;
+  optimizationSummary?: ClosedLoopOptimizationSummary;
   metrics: BiophysicalMetrics;
   aminoAcidProfile: AminoAcidCount[];
   pdbContent: string; // Valid 3D atomic coordinates in PDB format
@@ -79,6 +95,8 @@ export interface GeneratePeptideRequest {
   poreMechanism: PoreMechanism;
   safetyThreshold: SafetyThreshold;
   customPathogenName?: string;
+  provider?: AIProviderPreference;
+  autoOptimize?: boolean;
 }
 
 export interface GeneratePeptideResponse {

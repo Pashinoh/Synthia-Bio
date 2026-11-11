@@ -1,5 +1,5 @@
 import { AMINO_ACID_TABLE, BOMAN_TRANSFER_ENERGIES } from './eisenberg-scale';
-import { BiophysicalMetrics, AminoAcidCount, HemolysisRisk } from '@/types/peptide';
+import { BiophysicalMetrics, AminoAcidCount, HemolysisRisk } from '../types/peptide';
 
 /**
  * Calculates deterministic biophysical metrics for any peptide sequence.

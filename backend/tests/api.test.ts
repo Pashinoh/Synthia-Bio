@@ -71,6 +71,19 @@ test('Pas modules (protease shield & helical wheel) validate sequences properly'
   assert.equal(wheel.nodes.length, seq.length);
 });
 
+test('Protease shield covers elastase with proline protection and monotone half-life', () => {
+  // G,A,V,S,T each followed by a non-Pro residue -> 5 elastase sites; K6 -> trypsin
+  const open = analyzeProteaseStability('GAVSTKR');
+  assert.equal(open.cleavageSites.filter((s) => s.enzyme === 'Elastase').length, 5);
+
+  // G followed by P is shielded; only A3 (followed by G) is an elastase site
+  const guarded = analyzeProteaseStability('GPAGP');
+  assert.equal(guarded.cleavageSites.filter((s) => s.enzyme === 'Elastase').length, 1);
+
+  // More weighted cleavage sites never increases the estimated half-life
+  assert.ok(open.estimatedHalfLifeMinutes <= guarded.estimatedHalfLifeMinutes);
+});
+
 test('AI orchestrator gracefully falls back to deterministic heuristic when API keys are absent', async () => {
   const prevGemini = process.env.GEMINI_API_KEY;
   const prevGroq = process.env.GROQ_API_KEY;

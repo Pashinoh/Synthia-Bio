@@ -1,15 +1,41 @@
-import { NextResponse } from 'next/server';
-import { GeneratePeptideRequest, GeneratePeptideResponse, GeneratedPeptide } from '@/types/peptide';
-import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from '@/lib/pathogens';
-import { generatePeptideWithGemini } from '@/lib/gemini';
-import { calculateBiophysicalMetrics, getAminoAcidProfile } from '@/lib/bio-engine/calculators';
-import { generateAlphaHelixPDB } from '@/lib/bio-engine/pdb-generator';
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { GeneratePeptideRequest, GeneratePeptideResponse, GeneratedPeptide } from './types/peptide';
+import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from './pathogens';
+import { generatePeptideWithGemini } from './gemini';
+import { calculateBiophysicalMetrics, getAminoAcidProfile } from './bio-engine/calculators';
+import { generateAlphaHelixPDB } from './bio-engine/pdb-generator';
 
-export async function POST(request: Request) {
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+app.use(express.json());
+
+// Health Check Endpoint
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'online',
+    service: 'SynthiaBio AI & Biophysical Engine',
+    geminiConfigured: !!process.env.GEMINI_API_KEY,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Get WHO Priority Pathogens
+app.get('/api/pathogens', (_req: Request, res: Response) => {
+  res.json({ success: true, pathogens: WHO_PATHOGENS });
+});
+
+// Primary Synthesis Endpoint
+app.post('/api/generate', async (req: Request, res: Response) => {
   try {
-    const body: GeneratePeptideRequest = await request.json();
+    const body: GeneratePeptideRequest = req.body;
 
-    // 1. Identify Target Pathogen
+    // 1. Target Pathogen Selection
     let pathogen = WHO_PATHOGENS.find((p) => p.id === body.pathogenId);
     if (!pathogen) {
       if (body.customPathogenName) {
@@ -42,17 +68,19 @@ export async function POST(request: Request) {
       customPathogenName: body.customPathogenName
     };
 
-    // 2. Generate Candidate Sequence with Gemini 1.5
+    console.log(`[SynthiaBio BE] Synthesizing for ${pathogen.name} (${length}aa, ${params.poreMechanism})...`);
+
+    // 2. Generate with Gemini 1.5 Flash (or heuristic fallback)
     const rawAiOutput = await generatePeptideWithGemini(pathogen, params);
 
     // 3. Compute Deterministic Biophysical Properties
     const metrics = calculateBiophysicalMetrics(rawAiOutput.sequence);
     const aminoAcidProfile = getAminoAcidProfile(rawAiOutput.sequence);
 
-    // 4. Generate 3D PDB Atomic Coordinates
+    // 4. Synthesize 3D PDB Coordinates
     const pdbContent = generateAlphaHelixPDB(rawAiOutput.sequence, rawAiOutput.candidateName);
 
-    // 5. Construct Complete Lab Deliverables
+    // 5. Construct Complete Lab Deliverable Payload
     const candidatePeptide: GeneratedPeptide = {
       id: `synthia-${Date.now().toString(36)}`,
       name: rawAiOutput.candidateName,
@@ -81,16 +109,18 @@ export async function POST(request: Request) {
       peptide: candidatePeptide
     };
 
-    return NextResponse.json(responsePayload);
+    res.json(responsePayload);
   } catch (error: unknown) {
-    console.error('Peptide generation error:', error);
+    console.error('[SynthiaBio BE] Error in /api/generate:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal generation error';
-    return NextResponse.json(
-      {
-        success: false,
-        error: errorMessage
-      },
-      { status: 500 }
-    );
+    res.status(500).json({ success: false, error: errorMessage });
   }
-}
+});
+
+app.listen(PORT, () => {
+  console.log(`================================================================`);
+  console.log(`🧬 SynthiaBio Backend Engine (Ketua Territory)`);
+  console.log(`🚀 Server listening on: http://localhost:${PORT}`);
+  console.log(`🩺 Health check at:     http://localhost:${PORT}/health`);
+  console.log(`================================================================`);
+});

@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "AI-powered antimicrobial peptide design against WHO priority superbugs with real-time 3D molecular visualization and biophysical validation for the STEM2Connect Hackathon.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="en"

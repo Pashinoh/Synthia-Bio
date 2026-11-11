@@ -4,8 +4,8 @@
 ### Autonomous Generative AI Antimicrobial Peptide (AMP) Designer & Real-Time 3D Molecular Studio
 
 [![STEM2Connect Hackathon](https://img.shields.io/badge/Hackathon-STEM2Connect%202026-00F0FF?style=for-the-badge&logo=devpost)](https://stem2connect-online-hackathon.devpost.com/)
-[![Next.js 14](https://img.shields.io/badge/Next.js-16.4-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![Express](https://img.shields.io/badge/Backend-Express%20TS-000000?style=for-the-badge&logo=express)](https://expressjs.com/)
 [![Google Gemini 1.5](https://img.shields.io/badge/AI%20Core-Gemini%201.5%20Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/)
 [![WebGL 3D](https://img.shields.io/badge/3D%20Engine-3Dmol.js%20WebGL-10B981?style=for-the-badge)](https://3dmol.org/)
 [![License MIT](https://img.shields.io/badge/License-MIT-amber?style=for-the-badge)](LICENSE)
@@ -14,7 +14,7 @@
   <b>Tackling the WHO Critical Antimicrobial Resistance (AMR) Crisis with In-Silico Generative Drug Discovery</b>
 </p>
 
-[Live Demo](#) • [Devpost Submission](https://stem2connect-online-hackathon.devpost.com/) • [Team Workflow](./TEAM_WORKFLOW.md) • [Full Blueprint](./blueprint/synthia-bio-master-blueprint.md)
+[Devpost Submission](https://stem2connect-online-hackathon.devpost.com/) • [Team Workflow](./TEAM_WORKFLOW.md) • [Full Blueprint](./blueprint/synthia-bio-master-blueprint.md)
 
 </div>
 
@@ -44,24 +44,46 @@ Unlike conventional antibiotics that inhibit specific bacterial enzymes, **Antim
 
 ---
 
+## 📂 Modular Architecture: Clean Frontend & Backend Separation
+
+The repository is structured into two completely independent folders so the team can work smoothly on a **single branch (`main`)** with zero merge conflicts:
+
+```text
+Synthia-Bio/
+├── 🎨 frontend/                     # UI, 3D WebGL Viewer, Charts & Next.js App
+│   ├── src/components/              # 3Dmol canvas, dashboard controls, radar charts
+│   ├── src/app/                     # Studio page layout & styles
+│   └── package.json
+│
+├── 👑 backend/                      # Core AI & Biophysical Math Engine
+│   ├── src/server.ts                # Express API (:5000)
+│   ├── src/bio-engine/              # Eisenberg calculations & PDB 3D synthesizer
+│   ├── src/gemini.ts                # Google Gemini 1.5 Flash client
+│   └── package.json
+│
+├── blueprint/                       # 6-Pillar Master Technical Blueprint
+├── TEAM_WORKFLOW.md                 # Single-branch collaboration protocol
+└── README.md
+```
+
+---
+
 ## 🔬 Scientific Architecture & Biophysical Foundations
 
 ```mermaid
 flowchart TD
-    subgraph Input ["Target Pathogen & Constraints"]
+    subgraph FrontendApp ["🎨 Frontend (Next.js + WebGL)"]
         A["Pathogen Selection (e.g. MRSA)"] --> B["Design Constraints (Length 12-28, Mechanism)"]
+        F["3Dmol.js WebGL Interactive Canvas"]
+        G["Amphipathic Radar & Composition Charts"]
     end
 
-    subgraph CoreEngine ["SynthiaBio Dual Engine"]
-        B --> C["Gemini 1.5 Flash Molecular Reasoning"]
+    subgraph BackendAPI ["👑 Backend (Express + Gemini + Bio-Math)"]
+        B -->|POST /api/generate| C["Gemini 1.5 Flash Molecular Reasoning"]
         C --> D["Deterministic Biophysical Calculation Engine"]
         D --> E["Alpha-Helix 3D Coordinate Synthesizer"]
-    end
-
-    subgraph Output ["Interactive Presentation & Export"]
-        E --> F["3Dmol.js WebGL Interactive Canvas"]
-        D --> G["Amphipathic Radar & Composition Charts"]
-        E --> H["Standard .PDB Download & SPPS Lab Sheet"]
+        E -->|JSON Payload + PDB String| F
+        D -->|Biophysical Metrics| G
     end
 ```
 
@@ -74,71 +96,42 @@ $$\langle H \rangle = \frac{1}{N} \sum_{i=1}^{N} H_i \quad \text{(Eisenberg Cons
 ### 3. Amphipathic Hydrophobic Moment ($\langle \mu_H \rangle$)
 $$\langle \mu_H \rangle = \frac{1}{N} \sqrt{\left(\sum_{i=1}^N H_i \cos(i \cdot 100^\circ)\right)^2 + \left(\sum_{i=1}^N H_i \sin(i \cdot 100^\circ)\right)^2}$$
 
-### 4. Alpha-Helix Coordinate Synthesis ($N, C_\alpha, C, O$)
-Backbone atoms are calculated analytically along an ideal cylindrical alpha-helix coordinate frame:
-* Rise per residue: $\Delta z = 1.52 \text{ \AA}$
-* Angular pitch per residue: $\theta = 100^\circ$ ($1.74533\text{ rad}$)
-* Carbon alpha radius: $r_{C_\alpha} = 2.30 \text{ \AA}$
-
 ---
 
-## 🛠️ Lightweight yet World-Class Tech Stack
-
-| Layer | Technology | Key Advantage |
-|---|---|---|
-| **Framework** | Next.js 14+ (App Router, TS) | Unified monorepo: frontend + serverless edge API. |
-| **3D Engine** | `3Dmol.js` (WebGL Native) | ~150 KB gzipped, 60 FPS in browser, **0 GPU server cost**. |
-| **Styling** | Tailwind CSS v4 + Lucide Icons | Utility-first, precision biotech dark mode styling. |
-| **AI Engine** | Google Gemini 1.5 Flash API | Sub-second structured JSON output with generous free tier. |
-| **Biophysical Math** | Native TypeScript Engine | Runs in < 1ms on the client/edge with 0 latency. |
-| **Charts** | Recharts SVG | Responsive 5-axis amphipathic potency radar chart. |
-| **State** | Zustand (~1.5 KB) | Zero-boilerplate global state management. |
-
----
-
-## 🚀 Getting Started
+## 🚀 Quickstart Guide
 
 ### Prerequisites
-* **Node.js 18+ LTS**
-* **npm** (included with Node.js)
+* **Node.js 18+ LTS** and **npm**
 
-### Installation
-
+### 1. Clone & Install
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Pashinoh/Synthia-Bio.git
 cd Synthia-Bio
-
-# 2. Install dependencies
-npm install
-
-# 3. Configure environment variables (optional)
-copy .env.example .env.local
-# Add your GEMINI_API_KEY from Google AI Studio (https://aistudio.google.com/app/apikey)
-# Note: If omitted, SynthiaBio gracefully falls back to verified heuristic models!
-
-# 4. Start local development server
-npm run dev
-
-# 5. Open your browser
-# Navigate to http://localhost:3000
+npm run install:all
 ```
+
+### 2. Run Both Services Concurrently
+```bash
+npm run dev:all
+```
+* **Frontend:** [http://localhost:3000](http://localhost:3000)
+* **Backend:** [http://localhost:5000](http://localhost:5000) (Health check: `/health`)
+
+### Or Run Individually
+* **Frontend only:** `npm run dev:fe` (or `cd frontend && npm run dev`)
+* **Backend only:** `npm run dev:be` (or `cd backend && npm run dev`)
 
 ---
 
-## 👥 Team Structure & Role Division
+## 👥 Team Structure & Roles (Single Branch: `main`)
 
-Developed by a 2-person team for the **STEM2Connect AI Hackathon 2026**:
-
-| Member | Role | Core Ownership |
+| Member | Domain Folder | Core Ownership |
 |---|---|---|
-| **Pashinoh (Ketua)** | **Tech Lead & Core AI/Bio Architect** | Gemini API prompt engineering, biophysical calculation engine, PDB 3D synthesizer, serverless API routes, Devpost technical documentation. |
-| **Team Partner** | **UI/UX & 3D Frontend Lead** | Dashboard layout, 3Dmol WebGL canvas, Recharts radar charts, responsive styling, demo video production. |
-
-See [TEAM_WORKFLOW.md](./TEAM_WORKFLOW.md) for branch strategy and collaboration protocol.
+| **Pashinoh (Ketua)** | **`backend/`** | Express API, Gemini 1.5 structured prompt engineering, Eisenberg calculation formulas, PDB 3D synthesizer, Devpost submission. |
+| **Team Partner** | **`frontend/`** | 3Dmol WebGL canvas, Next.js UI layout, Recharts radar charts, responsive styling, demo video production. |
 
 ---
 
 ## 📄 License
-This project is open-source and distributed under the **MIT License**.
+This project is open-source and distributed under the **MIT License**.  
 Built with ❤️ for the global open-science and antimicrobial research community.

@@ -1,35 +1,18 @@
 {
-  "name": "ai-hackaton",
-  "version": "0.1.0",
+  "name": "synthia-bio",
+  "version": "1.0.0",
   "private": true,
+  "description": "SynthiaBio: Autonomous De Novo Antimicrobial Peptide Designer (STEM2Connect Hackathon 2026)",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@google/genai": "^3.1.0",
-    "3dmol": "^2.5.5",
-    "canvas-confetti": "^1.9.4",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.72.0",
-    "next": "16.4.6",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "recharts": "^3.10.1",
-    "tailwind-merge": "^3.7.0",
-    "zustand": "^5.1.0"
+    "dev": "npm --prefix frontend run dev",
+    "dev:fe": "npm --prefix frontend run dev",
+    "dev:be": "npm --prefix backend run dev",
+    "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,emerald\" \"npm run dev:be\" \"npm run dev:fe\"",
+    "build": "npm --prefix frontend run build",
+    "build:be": "npm --prefix backend run build",
+    "install:all": "npm --prefix frontend install && npm --prefix backend install"
   },
   "devDependencies": {
-    "@tailwindcss/turbopack": "4.3.3",
-    "@types/canvas-confetti": "^1.9.0",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.6",
-    "tailwindcss": "4.3.3",
-    "typescript": "^5"
+    "concurrently": "^9.2.5"
   }
 }

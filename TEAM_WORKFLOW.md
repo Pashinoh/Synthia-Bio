@@ -1,87 +1,106 @@
-# 🤝 SynthiaBio — Team Collaboration & Workflow Guide
-**Panduan Kerja Kolaboratif Tim 2 Orang (STEM2Connect Hackathon 2026)**
+# 🤝 SynthiaBio — Single-Branch Team Workflow Guide
+**Panduan Kerja 1 Branch (Main) dengan Pemisahan Fisik Frontend & Backend**
 
 ---
 
-## 1. Pembagian Peran & Batas Wilayah Folder
+## ⚡ Prinsip Kerja: 1 Branch (`main`) & Anti-Conflict
 
-Agar pekerjaan berjalan paralel, cepat, dan **bebas dari git merge conflict**, proyek ini dibagi secara ketat menjadi dua domain kerja:
+Untuk kenyamanan Anda dan rekan, kita **hanya menggunakan 1 branch utama (`main`)**. 
+Tidak perlu repot membuat branch baru, switch branch, atau membuat Pull Request yang rumit!
 
+### Kenapa Bebas Bentrok (*Zero Merge Conflict*)?
+Karena repositori dipisahkan secara fisik menjadi **dua folder independen**:
+1. 🎨 **Folder `frontend/`** $\rightarrow$ Dikelola oleh **Rekan**
+2. 👑 **Folder `backend/`** $\rightarrow$ Dikelola oleh **Ketua**
+
+Selama rekan hanya mengedit file di dalam `frontend/` dan ketua hanya mengedit file di dalam `backend/`, proses `git pull` dan `git push` ke `main` **dijamin 100% tidak akan pernah mengalami konflik!**
+
+---
+
+## 📂 Peta Wilayah Folder Tim
+
+```text
+Synthia-Bio/
+│
+├── 🎨 frontend/                     # WILAYAH REKAN (UI, 3D Canvas, & Visuals)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── canvas3d/            # 3Dmol.js WebGL Molecular Viewer
+│   │   │   ├── dashboard/           # Header, Pathogen Selector, Parameter Controls, Sequence Card
+│   │   │   ├── charts/              # Recharts Biophysical Radar & AA Profile
+│   │   │   └── export/              # Synthesis Protocol Sheet Modal
+│   │   ├── app/                     # Next.js Pages & Styling
+│   │   ├── store/                   # Zustand state management
+│   │   └── contracts/               # Mock data untuk development offline
+│   ├── package.json                 # Dependensi Frontend
+│   └── README.md
+│
+├── 👑 backend/                      # WILAYAH KETUA (Core AI & Bio-Calculators)
+│   ├── src/
+│   │   ├── server.ts                # Express API Server (:5000)
+│   │   ├── bio-engine/
+│   │   │   ├── eisenberg-scale.ts   # Tabel konsensus hidrofobisitas Eisenberg
+│   │   │   ├── calculators.ts       # Rumus Net Charge, Momen Amfifatik, Boman, Hemolisis
+│   │   │   └── pdb-generator.ts     # Generator koordinat atom 3D PDB heliks
+│   │   ├── gemini.ts                # Google Gemini 1.5 Flash structured client
+│   │   └── pathogens.ts             # Database profil bakteri patogen prioritas WHO
+│   ├── package.json                 # Dependensi Backend
+│   └── .env.example
+│
+├── blueprint/                       # Arsip Master Blueprint (PRD, TRD, App Flow, Schema)
+├── package.json                     # Root orchestrator scripts
+├── TEAM_WORKFLOW.md                 # Dokumen panduan ini
+└── README.md                        # Dokumentasi resmi GitHub
 ```
-+------------------------------------------------------------------------------------+
-|                               STRUKTUR WILAYAH KERJA                               |
-+--------------------------------------------------+---------------------------------+
-| 👑 KETUA (Tech Lead & Core AI Architect)         | 🎨 REKAN (UI/UX & Frontend Lead)|
-|                                                  |                                 |
-| • src/lib/bio-engine/ (Kalkulator Sains)         | • src/components/canvas3d/ (3D) |
-| • src/lib/gemini.ts (Prompt AI)                  | • src/components/dashboard/ (UI)|
-| • src/lib/pathogens.ts (Data Patogen)            | • src/components/charts/ (Chart)|
-| • src/app/api/generate/route.ts (API Backend)    | • src/components/export/ (Modal)|
-| • src/contracts/ (Kontrak Data Mock)             | • src/app/globals.css (Styling) |
-| • Devpost Essay & GitHub Config                  | • Produksi Video Demo (3-4 min) |
-+--------------------------------------------------+---------------------------------+
-```
 
 ---
 
-## 2. Alur Kerja Harian (Git Branching Model)
+## 🚀 Cara Menjalankan Project
 
-### 2.1 Branch Utama:
-* `main`: Cabang produksi yang harus selalu stabil dan dapat di-build (`npm run build`).
-
-### 2.2 Branch Pengembang:
-* **Ketua:** Bekerja di branch `feat/core-ai-engine`
-* **Rekan:** Bekerja di branch `feat/ui-3d-visuals`
-
-### 2.3 Protokol Kolaborasi:
-1. **Pagi hari:** Selalu lakukan `git pull origin main` sebelum mulai mengedit file.
-2. **Saat tugas selesai:** Buat Pull Request (PR) ke `main` atau diskusikan sebelum melakukan merge.
-3. **Jangan menyentuh file milik rekan** tanpa konfirmasi sebelumnya.
-
----
-
-## 3. Kontrak Data Mock (Anti-Blocking Development)
-
-Rekan **TIDAK PERLU MENUNGGU** API Gemini aktif untuk mengerjakan desain web atau 3D viewer.
-* Seluruh data mock yang valid dan teruji sudah tersedia di:
-  `src/contracts/mock-peptide.json` dan `src/lib/mock-data.ts`.
-* Di `src/store/usePeptideStore.ts`, state awal langsung memuat data mock ini secara default.
-* Jika `GEMINI_API_KEY` belum dipasang, sistem otomatis mengaktifkan mode *heuristic fallback*, sehingga antarmuka tetap berjalan 100% normal.
-
----
-
-## 4. Panduan Menjalankan Project di Laptop Rekan
-
-Bagi rekan yang baru clone repository ini:
-
+### Opsi 1: Menjalankan Keduanya Sekaligus (Rekomendasi dari Root)
 ```bash
-# 1. Clone repository
-git clone https://github.com/Pashinoh/Synthia-Bio.git
-cd Synthia-Bio
+# Menjalankan Backend (:5000) dan Frontend (:3000) secara bersamaan
+npm run dev:all
+```
 
-# 2. Install dependensi (hanya butuh Node.js 18+)
-npm install
-
-# 3. Setup Environment Variables (Opsional)
-copy .env.example .env.local
-# Masukkan API key jika ada (jika belum ada, biarkan kosong; app tetap jalan)
-
-# 4. Jalankan Development Server
+### Opsi 2: Rekan Hanya Menjalankan Frontend
+Jika rekan hanya ingin fokus mengerjakan tampilan visual tanpa perlu menyalakan backend:
+```bash
+npm run dev:fe
+# atau masuk ke folder frontend:
+cd frontend
 npm run dev
+# Buka http://localhost:3000
+```
+*(Catatan: Frontend memiliki fitur **Auto-Fallback**, sehingga tetap berjalan normal menggunakan data simulasi meskipun backend sedang mati).*
 
-# 5. Buka di browser
-# http://localhost:3000
+### Opsi 3: Ketua Hanya Menjalankan Backend
+Jika ketua sedang menguji kalkulator sains atau tuning prompt Gemini:
+```bash
+npm run dev:be
+# atau masuk ke folder backend:
+cd backend
+npm run dev
+# Server aktif di http://localhost:5000 (Health check di /health)
 ```
 
 ---
 
-## 5. Checklist Target Selesai Sebelum 21 November 2026
+## 🔄 Protokol Git Harian (Sangat Mudah!)
 
-* [x] **Setup Pondasi & Clean Architecture (Hari 1)**
-* [x] **Kalkulator Biofisika & PDB Generator 3D (Hari 2)**
-* [x] **Integrasi Gemini 1.5 Flash API Route (Hari 3)**
-* [x] **Studio Dashboard UI, 3D WebGL Canvas, & Radar Chart (Hari 4)**
-* [ ] **Review Visual & Responsivitas Mobile/Tablet (Hari 5-7 - Rekan)**
-* [ ] **Pengujian Live Deploy di Vercel (Hari 7-8 - Ketua)**
-* [ ] **Perekaman Video Demo 3–4 Menit (Hari 9-10 - Rekan & Ketua)**
-* [ ] **Final Submission ke Devpost sebelum 21 Nov 20:59 PST (Bersama-sama)**
+Setiap kali mau mulai ngoding atau setelah selesai:
+
+1. **Sebelum mulai ngoding (Pagi/Awal sesi):**
+   ```bash
+   git pull origin main
+   ```
+2. **Setelah selesai ngoding (Sore/Akhir sesi):**
+   ```bash
+   git add .
+   git commit -m "feat(fe): update tampilan 3d viewer" # jika rekan
+   # ATAU
+   git commit -m "feat(be): update kalkulator amfifatik" # jika ketua
+   git push origin main
+   ```
+
+Selesai! Tidak ada branch lain, semua tersinkronisasi rapi di branch `main`.

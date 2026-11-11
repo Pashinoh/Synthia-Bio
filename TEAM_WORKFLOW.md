@@ -1,106 +1,62 @@
-# 🤝 SynthiaBio — Single-Branch Team Workflow Guide
-**Panduan Kerja 1 Branch (Main) dengan Pemisahan Fisik Frontend & Backend**
+# 🤝 SynthiaBio — Team Workflow Guide (Phase 1: Backend First)
+**Strategi Kolaborasi 1 Branch (`main`): Fokus Menuntaskan Backend Dahulu**
 
 ---
 
-## ⚡ Prinsip Kerja: 1 Branch (`main`) & Anti-Conflict
-
-Untuk kenyamanan Anda dan rekan, kita **hanya menggunakan 1 branch utama (`main`)**. 
-Tidak perlu repot membuat branch baru, switch branch, atau membuat Pull Request yang rumit!
-
-### Kenapa Bebas Bentrok (*Zero Merge Conflict*)?
-Karena repositori dipisahkan secara fisik menjadi **dua folder independen**:
-1. 🎨 **Folder `frontend/`** $\rightarrow$ Dikelola oleh **Rekan**
-2. 👑 **Folder `backend/`** $\rightarrow$ Dikelola oleh **Ketua**
-
-Selama rekan hanya mengedit file di dalam `frontend/` dan ketua hanya mengedit file di dalam `backend/`, proses `git pull` dan `git push` ke `main` **dijamin 100% tidak akan pernah mengalami konflik!**
+## ⚡ Prinsip Kerja Fase 1: Backend First & Zero ML Training
+Sebelum menyentuh UI frontend, tim fokus 100% mematangkan **Core Engine & Backend** di dalam folder `backend/`.
+> **PENTING:** Tidak ada training model ML dari nol. Seluruh kecerdasan menggunakan **Google Gemini 1.5 Flash API** dan kalkulasi biofisika deterministik berbasis TypeScript murni.
 
 ---
 
-## 📂 Peta Wilayah Folder Tim
+## 👥 Pembagian Tugas Backend: Irfan vs Pas
 
-```text
-Synthia-Bio/
-│
-├── 🎨 frontend/                     # WILAYAH REKAN (UI, 3D Canvas, & Visuals)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── canvas3d/            # 3Dmol.js WebGL Molecular Viewer
-│   │   │   ├── dashboard/           # Header, Pathogen Selector, Parameter Controls, Sequence Card
-│   │   │   ├── charts/              # Recharts Biophysical Radar & AA Profile
-│   │   │   └── export/              # Synthesis Protocol Sheet Modal
-│   │   ├── app/                     # Next.js Pages & Styling
-│   │   ├── store/                   # Zustand state management
-│   │   └── contracts/               # Mock data untuk development offline
-│   ├── package.json                 # Dependensi Frontend
-│   └── README.md
-│
-├── 👑 backend/                      # WILAYAH KETUA (Core AI & Bio-Calculators)
-│   ├── src/
-│   │   ├── server.ts                # Express API Server (:5000)
-│   │   ├── bio-engine/
-│   │   │   ├── eisenberg-scale.ts   # Tabel konsensus hidrofobisitas Eisenberg
-│   │   │   ├── calculators.ts       # Rumus Net Charge, Momen Amfifatik, Boman, Hemolisis
-│   │   │   └── pdb-generator.ts     # Generator koordinat atom 3D PDB heliks
-│   │   ├── gemini.ts                # Google Gemini 1.5 Flash structured client
-│   │   └── pathogens.ts             # Database profil bakteri patogen prioritas WHO
-│   ├── package.json                 # Dependensi Backend
-│   └── .env.example
-│
-├── blueprint/                       # Arsip Master Blueprint (PRD, TRD, App Flow, Schema)
-├── package.json                     # Root orchestrator scripts
-├── TEAM_WORKFLOW.md                 # Dokumen panduan ini
-└── README.md                        # Dokumentasi resmi GitHub
+```
++------------------------------------------------------------------------------------+
+|                         PEMBAGIAN TUGAS BACKEND (PHASE 1)                          |
++--------------------------------------------------+---------------------------------+
+| 👑 IRFAN (AI Engine & API Orchestrator)          | 🧪 PAS (Bio-Engine & Benchmark) |
+|                                                  |                                 |
+| • File: backend/src/server.ts                    | • File: backend/src/pathogens.ts|
+| • File: backend/src/gemini.ts                    | • File: backend/src/bio-engine/ |
+|                                                  |                                 |
+| 1. Setup API Key & Koneksi Gemini 1.5 Flash      | 1. Tambah data patogen ESKAPE   |
+| 2. Prompt Engineering (JSON Schema Output)       |    (Candida auris & VRE)        |
+| 3. Route Handler POST /api/generate              | 2. Buat database komparasi obat |
+| 4. Error Handling & Fallback Heuristic           |    nyata (Magainin-2, Melittin) |
+| 5. Testing Endpoint via Postman/curl             | 3. Buat endpoint analisa custom |
+|                                                  |    sekuens (POST /api/analyze)  |
++--------------------------------------------------+---------------------------------+
 ```
 
 ---
 
-## 🚀 Cara Menjalankan Project
+## 🚀 Panduan Menjalankan Backend untuk Irfan & Pas
 
-### Opsi 1: Menjalankan Keduanya Sekaligus (Rekomendasi dari Root)
 ```bash
-# Menjalankan Backend (:5000) dan Frontend (:3000) secara bersamaan
-npm run dev:all
-```
-
-### Opsi 2: Rekan Hanya Menjalankan Frontend
-Jika rekan hanya ingin fokus mengerjakan tampilan visual tanpa perlu menyalakan backend:
-```bash
-npm run dev:fe
-# atau masuk ke folder frontend:
-cd frontend
-npm run dev
-# Buka http://localhost:3000
-```
-*(Catatan: Frontend memiliki fitur **Auto-Fallback**, sehingga tetap berjalan normal menggunakan data simulasi meskipun backend sedang mati).*
-
-### Opsi 3: Ketua Hanya Menjalankan Backend
-Jika ketua sedang menguji kalkulator sains atau tuning prompt Gemini:
-```bash
-npm run dev:be
-# atau masuk ke folder backend:
+# 1. Masuk ke direktori backend
 cd backend
+
+# 2. Pastikan dependensi terpasang
+npm install
+
+# 3. Jalankan server backend (dengan auto-reload TSX)
 npm run dev
-# Server aktif di http://localhost:5000 (Health check di /health)
+
+# 4. Cek apakah server sudah aktif:
+# Buka http://localhost:5000/health di browser
 ```
 
 ---
 
-## 🔄 Protokol Git Harian (Sangat Mudah!)
+## 🔄 Protokol Git di Branch `main`
 
-Setiap kali mau mulai ngoding atau setelah selesai:
-
-1. **Sebelum mulai ngoding (Pagi/Awal sesi):**
-   ```bash
-   git pull origin main
-   ```
-2. **Setelah selesai ngoding (Sore/Akhir sesi):**
+1. **Sebelum mulai:** `git pull origin main`
+2. **Saat selesai:**
    ```bash
    git add .
-   git commit -m "feat(fe): update tampilan 3d viewer" # jika rekan
-   # ATAU
-   git commit -m "feat(be): update kalkulator amfifatik" # jika ketua
+   git commit -m "feat(be): update prompt gemini / tambah patogen"
    git push origin main
    ```
 
-Selesai! Tidak ada branch lain, semua tersinkronisasi rapi di branch `main`.
+*Fase 2 (Frontend & Demo Video) akan dimulai bersama-sama setelah seluruh endpoint backend dinyatakan solid.*

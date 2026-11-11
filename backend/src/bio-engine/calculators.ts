@@ -166,6 +166,46 @@ export function getAminoAcidProfile(sequence: string): AminoAcidCount[] {
 }
 
 /**
+ * [PAS] Public charge-vs-pH profile: samples the internal Henderson-Hasselbalch
+ * charge model across a pH range and returns the titration curve plus the pI.
+ * Default range pH 2.0-12.0, step 0.5 (21 points).
+ */
+export interface ChargePhPoint {
+  ph: number;
+  charge: number;
+}
+
+export interface ChargePhCurve {
+  points: ChargePhPoint[];
+  isoelectricPoint: number;
+}
+
+export function computeChargePhCurve(
+  sequence: string,
+  options?: { minPh?: number; maxPh?: number; step?: number }
+): ChargePhCurve {
+  const cleanSeq = sequence.toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
+  if (cleanSeq.length === 0) {
+    throw new Error('Sequence must contain at least one valid amino acid residue');
+  }
+
+  const minPh = options?.minPh ?? 2.0;
+  const maxPh = options?.maxPh ?? 12.0;
+  const step = options?.step ?? 0.5;
+
+  const points: ChargePhPoint[] = [];
+  for (let i = 0; i * step + minPh <= maxPh + 1e-9; i++) {
+    const ph = minPh + i * step;
+    points.push({
+      ph: parseFloat(ph.toFixed(2)),
+      charge: parseFloat(calculateChargeAtPh(cleanSeq, ph).toFixed(3))
+    });
+  }
+
+  return { points, isoelectricPoint: estimateIsoelectricPoint(cleanSeq) };
+}
+
+/**
  * Iterative bisection algorithm to estimate the Isoelectric Point (pI).
  */
 function estimateIsoelectricPoint(sequence: string): number {

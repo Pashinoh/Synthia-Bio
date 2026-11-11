@@ -6,6 +6,10 @@ import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from './pathogens';
 import { generatePeptideWithGemini } from './gemini';
 import { calculateBiophysicalMetrics, getAminoAcidProfile } from './bio-engine/calculators';
 import { generateAlphaHelixPDB } from './bio-engine/pdb-generator';
+import { computeHelicalWheel } from './bio-engine/helical-wheel';
+import { getClinicalBenchmarks } from './benchmarks/clinical-peptides';
+import { scanBeneficialMutations } from './ai/mutation-optimizer';
+import { analyzeProteaseStability } from './validators/protease-shield';
 
 dotenv.config();
 
@@ -15,27 +19,85 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Health Check Endpoint
+// 1. Health Check Endpoint
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'online',
     service: 'SynthiaBio AI & Biophysical Engine',
     geminiConfigured: !!process.env.GEMINI_API_KEY,
+    endpoints: [
+      'GET  /api/pathogens',
+      'GET  /api/benchmarks',
+      'POST /api/generate',
+      'POST /api/optimize',
+      'POST /api/validate-stability'
+    ],
     timestamp: new Date().toISOString()
   });
 });
 
-// Get WHO Priority Pathogens
+// 2. Get WHO Priority Pathogens
 app.get('/api/pathogens', (_req: Request, res: Response) => {
   res.json({ success: true, pathogens: WHO_PATHOGENS });
 });
 
-// Primary Synthesis Endpoint
+// 3. [IRFAN] Clinical Gold-Standard AMP Benchmarks
+app.get('/api/benchmarks', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    benchmarks: getClinicalBenchmarks()
+  });
+});
+
+// 4. [IRFAN] In-Silico Single-Point Mutation Optimizer
+app.post('/api/optimize', (req: Request, res: Response) => {
+  try {
+    const { sequence } = req.body;
+    if (!sequence || typeof sequence !== 'string') {
+      res.status(400).json({ success: false, error: 'Sequence string is required' });
+      return;
+    }
+    const baseMetrics = calculateBiophysicalMetrics(sequence);
+    const mutations = scanBeneficialMutations(sequence);
+    res.json({
+      success: true,
+      originalSequence: sequence,
+      baseMetrics,
+      recommendedMutations: mutations
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Mutation scan failed';
+    res.status(500).json({ success: false, error: msg });
+  }
+});
+
+// 5. [PAS] Protease Stability & 2D Helical Wheel Projection Validator
+app.post('/api/validate-stability', (req: Request, res: Response) => {
+  try {
+    const { sequence } = req.body;
+    if (!sequence || typeof sequence !== 'string') {
+      res.status(400).json({ success: false, error: 'Sequence string is required' });
+      return;
+    }
+    const proteaseReport = analyzeProteaseStability(sequence);
+    const helicalWheel = computeHelicalWheel(sequence);
+    res.json({
+      success: true,
+      sequence,
+      proteaseReport,
+      helicalWheel
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Stability validation failed';
+    res.status(500).json({ success: false, error: msg });
+  }
+});
+
+// 6. Primary De Novo Synthesis Endpoint
 app.post('/api/generate', async (req: Request, res: Response) => {
   try {
     const body: GeneratePeptideRequest = req.body;
 
-    // 1. Target Pathogen Selection
     let pathogen = WHO_PATHOGENS.find((p) => p.id === body.pathogenId);
     if (!pathogen) {
       if (body.customPathogenName) {
@@ -70,17 +132,11 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 
     console.log(`[SynthiaBio BE] Synthesizing for ${pathogen.name} (${length}aa, ${params.poreMechanism})...`);
 
-    // 2. Generate with Gemini 1.5 Flash (or heuristic fallback)
     const rawAiOutput = await generatePeptideWithGemini(pathogen, params);
-
-    // 3. Compute Deterministic Biophysical Properties
     const metrics = calculateBiophysicalMetrics(rawAiOutput.sequence);
     const aminoAcidProfile = getAminoAcidProfile(rawAiOutput.sequence);
-
-    // 4. Synthesize 3D PDB Coordinates
     const pdbContent = generateAlphaHelixPDB(rawAiOutput.sequence, rawAiOutput.candidateName);
 
-    // 5. Construct Complete Lab Deliverable Payload
     const candidatePeptide: GeneratedPeptide = {
       id: `synthia-${Date.now().toString(36)}`,
       name: rawAiOutput.candidateName,
@@ -119,7 +175,7 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log(`================================================================`);
-  console.log(`🧬 SynthiaBio Backend Engine (Ketua Territory)`);
+  console.log(`🧬 SynthiaBio Backend Engine — Phase 1: Backend-First Mode`);
   console.log(`🚀 Server listening on: http://localhost:${PORT}`);
   console.log(`🩺 Health check at:     http://localhost:${PORT}/health`);
   console.log(`================================================================`);

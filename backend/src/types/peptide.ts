@@ -38,6 +38,7 @@ export interface BiophysicalMetrics {
   hydrophobicMoment: number; // e.g. 0.58 (> 0.4 is strongly amphipathic)
   isoelectricPoint: number; // pI value, e.g. 10.4
   bomanIndex: number; // in kcal/mol, e.g. 2.1
+  aliphaticIndex: number; // Ikai 1980 thermal-stability proxy (X(Ala)+2.9X(Val)+3.9X(Ile+Leu))
   predictedHemolysisRisk: HemolysisRisk;
   therapeuticSelectivityIndex: number; // 0 - 100
   hydrophobicResidueRatio: number; // 0.0 - 1.0 (e.g. 0.45)

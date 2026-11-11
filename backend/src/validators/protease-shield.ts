@@ -25,7 +25,8 @@ export function analyzeProteaseStability(sequence: string): ProteaseStabilityRep
     const res = cleanSeq[i];
     const nextRes = cleanSeq[i + 1];
 
-    // Trypsin cleaves at C-terminal side of K or R (except when followed by Proline 'P')
+    // Trypsin cleaves on the C-terminal side of Lys/Arg (Keil specificity: Lys|, Arg|),
+    // except when followed by Proline, which kinks the backbone and blocks the enzyme.
     if ((res === 'K' || res === 'R') && nextRes !== 'P') {
       cleavageSites.push({
         position: i + 1,
@@ -35,7 +36,8 @@ export function analyzeProteaseStability(sequence: string): ProteaseStabilityRep
       });
     }
 
-    // Chymotrypsin cleaves at bulky aromatic residues (F, W, Y) unless followed by P
+    // Chymotrypsin cleaves on the C-terminal side of bulky aromatic residues (F, W, Y;
+    // Keil specificity: Phe|, Trp|, Tyr|), except when followed by Proline.
     if ((res === 'F' || res === 'W' || res === 'Y') && nextRes !== 'P') {
       cleavageSites.push({
         position: i + 1,
@@ -44,9 +46,33 @@ export function analyzeProteaseStability(sequence: string): ProteaseStabilityRep
         mitigationAdvice: `Shield aromatic sidechain via C-alpha methylation or staple helix across i, i+4.`
       });
     }
+
+    // Elastase cleaves on the C-terminal side of small neutral residues (Keil specificity:
+    // Ala|, Gly|, Ser|, Val| approximated; in-silico rule uses A, V, G, S, T), except
+    // when followed by Proline. shortcut: approximation, not experimentally calibrated.
+    if ((res === 'A' || res === 'V' || res === 'G' || res === 'S' || res === 'T') && nextRes !== 'P') {
+      cleavageSites.push({
+        position: i + 1,
+        enzyme: 'Elastase',
+        motif: `${res}${i + 1}-${nextRes}${i + 2}`,
+        mitigationAdvice: `Substitute with a bulky hydrophobic residue (Leu, Ile) or N-methylate at position ${i + 1} to shield elastase access.`
+      });
+    }
   }
 
-  const penalty = Math.min(65, cleavageSites.length * 6);
+  // Serum half-life model (deterministic, no ML):
+  // cleavage sites are weighted by the relative serum protease activity of each motif
+  // class — trypsin-like cleavage at cationic K/R sites dominates peptide degradation
+  // in serum (1.0), chymotrypsin-like aromatic cleavage proceeds at roughly half that
+  // rate (0.6), and elastase-like small-residue cleavage contributes least (0.35).
+  // The weighted density maps to a stability score (25-95), then to minutes.
+  const ENZYME_WEIGHTS: Record<CleavageSite['enzyme'], number> = {
+    Trypsin: 1.0,
+    Chymotrypsin: 0.6,
+    Elastase: 0.35
+  };
+  const weightedSites = cleavageSites.reduce((acc, site) => acc + ENZYME_WEIGHTS[site.enzyme], 0);
+  const penalty = Math.min(65, weightedSites * 6);
   const stabilityScore = Math.max(25, 95 - penalty);
   const estimatedHalfLifeMinutes = Math.round(15 + stabilityScore * 1.8);
 

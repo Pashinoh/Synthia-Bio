@@ -1,0 +1,45 @@
+{
+  "id": "synthia-mock-001",
+  "name": "Synthia-MRSA-Alpha1",
+  "sequence": "KWKLFKKIEKVGQNVRDG",
+  "length": 18,
+  "targetPathogen": "MRSA (Methicillin-resistant S. aureus)",
+  "mechanism": "toroidal",
+  "molecularRationale": "Engineered with an amphipathic alpha-helical partition: alternating cationic Lysine (K) residues align along the electrostatic face to displace divalent cations on teichoic acids, while hydrophobic Leucine (L), Tryptophan (W), and Valine (V) residues embed deeply into the hydrophobic lipid bilayer core to trigger toroidal pore formation.",
+  "membraneAffinityExplanation": "The calculated net charge of +5.1 provides rapid attraction to the negative -32 mV surface potential of MRSA, while a moderate hydrophobic moment (0.48) ensures minimal hemolytic damage to mammalian erythrocytes.",
+  "metrics": {
+    "netCharge": 5.1,
+    "meanHydrophobicity": 0.42,
+    "hydrophobicMoment": 0.58,
+    "isoelectricPoint": 10.45,
+    "bomanIndex": 2.15,
+    "predictedHemolysisRisk": "Low",
+    "therapeuticSelectivityIndex": 88,
+    "hydrophobicResidueRatio": 0.44,
+    "positiveResidueCount": 5
+  },
+  "aminoAcidProfile": [
+    { "code": "K", "name": "Lysine", "count": 4, "percentage": 22.2, "category": "positive" },
+    { "code": "W", "name": "Tryptophan", "count": 1, "percentage": 5.6, "category": "hydrophobic" },
+    { "code": "L", "name": "Leucine", "count": 1, "percentage": 5.6, "category": "hydrophobic" },
+    { "code": "F", "name": "Phenylalanine", "count": 1, "percentage": 5.6, "category": "hydrophobic" },
+    { "code": "I", "name": "Isoleucine", "count": 1, "percentage": 5.6, "category": "hydrophobic" },
+    { "code": "E", "name": "Glutamic Acid", "count": 1, "percentage": 5.6, "category": "negative" },
+    { "code": "V", "name": "Valine", "count": 2, "percentage": 11.1, "category": "hydrophobic" },
+    { "code": "G", "name": "Glycine", "count": 2, "percentage": 11.1, "category": "neutral" },
+    { "code": "Q", "name": "Glutamine", "count": 1, "percentage": 5.6, "category": "hydrophilic" },
+    { "code": "N", "name": "Asparagine", "count": 1, "percentage": 5.6, "category": "hydrophilic" },
+    { "code": "R", "name": "Arginine", "count": 1, "percentage": 5.6, "category": "positive" },
+    { "code": "D", "name": "Aspartic Acid", "count": 1, "percentage": 5.6, "category": "negative" }
+  ],
+  "pdbContent": "HEADER    ANTIMICROBIAL PEPTIDE                   2026-11-11\nTITLE     SYNTHIABIO DE NOVO DESIGN: SYNTHIA-MRSA-ALPHA1\nCOMPND    MOL_ID: 1; MOLECULE: SYNTHIA-MRSA-ALPHA1; CHAIN: A; ENGINEERED: YES\nSOURCE    SYNTHETIC CONSTRUCT; DESIGN_METHOD: GENERATIVE_AI_AMPHIPATHIC_HELIX\nHELIX    1   1 LYS A    1  GLY A   18  1                                     18\nATOM      1  N   LYS A   1     1.406  -0.862  -0.450  1.00 15.00           N\nATOM      2  CA  LYS A   1     2.300   0.000   0.000  1.00 15.00           C\nATOM      3  C   LYS A   1     1.866   1.068   0.480  1.00 15.00           C\nATOM      4  O   LYS A   1     2.216   1.791   0.520  1.00 15.00           O\nATOM      5  CB  LYS A   1     3.246  -0.828   0.850  1.00 15.00           C\nATOM      6  N   TRP A   2    -0.862   1.406   1.070  1.00 49.65           N\nATOM      7  CA  TRP A   2    -0.399   2.265   1.520  1.00 49.65           C\nATOM      8  C   TRP A   2     0.280   2.132   2.000  1.00 49.65           C\nATOM      9  O   TRP A   2     0.540   2.798   2.040  1.00 49.65           O\nATOM     10  CB  TRP A   2    -0.985   3.202   2.370  1.00 49.65           C\nTER\nEND",
+  "fastaContent": ">Synthia-MRSA-Alpha1 | De Novo Antimicrobial Peptide | Target: MRSA\nKWKLFKKIEKVGQNVRDG",
+  "synthesisProtocol": {
+    "nTerminalModification": "Free amine (unblocked) for optimal positive charge",
+    "cTerminalModification": "C-terminal carboxamide (-CONH2) to enhance biological stability against exopeptidases",
+    "recommendedMethod": "Fmoc solid-phase peptide synthesis (Fmoc-SPPS) on Rink Amide resin",
+    "purificationTechnique": "Preparative RP-HPLC on C18 column (gradient 10-60% acetonitrile with 0.1% TFA) to >95% purity",
+    "storageCondition": "Lyophilized solid at -20°C in desiccated amber vials; reconstitute in sterile deionized water or 0.01% acetic acid"
+  },
+  "createdAt": "2026-11-11T15:30:00.000Z"
+}

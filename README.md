@@ -14,7 +14,7 @@
   <b>Tackling the WHO Critical Antimicrobial Resistance (AMR) Crisis with In-Silico Generative Drug Discovery</b>
 </p>
 
-[Devpost Submission](https://stem2connect-online-hackathon.devpost.com/) • [Team Workflow](./TEAM_WORKFLOW.md) • [Full Blueprint](./blueprint/synthia-bio-master-blueprint.md)
+[Devpost Submission](https://stem2connect-online-hackathon.devpost.com/) • [Team Workflow](./docs/TEAM_WORKFLOW.md) • [Full Blueprint](./docs/synthia-bio-master-blueprint.md)
 
 </div>
 
@@ -61,8 +61,9 @@ Synthia-Bio/
 │   ├── src/gemini.ts                # Google Gemini client (`@google/genai`)
 │   └── package.json
 │
-├── blueprint/                       # 6-Pillar Master Technical Blueprint
-├── TEAM_WORKFLOW.md                 # Single-branch collaboration protocol
+├── docs/                            # Blueprint & single-branch collaboration protocol
+│   ├── synthia-bio-master-blueprint.md
+│   └── TEAM_WORKFLOW.md
 └── README.md
 ```
 

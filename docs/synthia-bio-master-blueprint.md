@@ -254,7 +254,7 @@ export interface PeptideGenerationResponse {
 
 ## 6. Implementation Plan & Pembagian Tugas Tim 2 Orang
 
-Untuk memastikan proyek ini selesai tepat waktu sebelum **21 November 2026** tanpa *merge conflict* dan **tanpa training model ML berat**, tim menjalankan strategi **Backend-First di 1 Branch (`main`)** (detail operasional ada di [TEAM_WORKFLOW.md](../TEAM_WORKFLOW.md)):
+Untuk memastikan proyek ini selesai tepat waktu sebelum **21 November 2026** tanpa *merge conflict* dan **tanpa training model ML berat**, tim menjalankan strategi **Backend-First di 1 Branch (`main`)** (detail operasional ada di [TEAM_WORKFLOW.md](./TEAM_WORKFLOW.md)):
 
 ```text
 +------------------------------------------------------------------------------------+

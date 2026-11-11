@@ -6,6 +6,8 @@ node_modules/
 dist/
 build/
 out/
+*.tsbuildinfo
+.vercel
 
 # Env
 .env

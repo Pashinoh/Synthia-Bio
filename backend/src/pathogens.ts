@@ -1,4 +1,4 @@
-import { PathogenProfile } from '@/types/peptide';
+import { PathogenProfile } from './types/peptide';
 
 export const WHO_PATHOGENS: PathogenProfile[] = [
   {

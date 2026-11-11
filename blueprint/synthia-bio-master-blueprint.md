@@ -52,29 +52,31 @@
 ## 2. TRD (Technical Requirements Document)
 
 ### 2.1 Arsitektur Sistem
-SynthiaBio dibangun sebagai aplikasi web modern *hybrid* (Client-Side Rendering untuk 3D WebGL dan Serverless Edge API Routes untuk orkestrasi AI):
+SynthiaBio dibangun dengan arsitektur **Monorepo Terpisah (`frontend/` + `backend/`)** agar kolaborasi backend berjalan bersih tanpa bergantung pada siklus build UI, dengan rendering 3D WebGL di sisi klien dan REST API Express TypeScript untuk orkestrasi AI & komputasi biofisika:
 
 ```mermaid
 flowchart LR
-    subgraph Client ["Frontend (Next.js 14 App Router)"]
-        UI["Tailwind + Shadcn Dashboard"]
+    subgraph Client ["Frontend (frontend/ — Next.js 16 App Router + React 19)"]
+        UI["Tailwind v4 + Zustand Studio UI"]
         WebGL["3Dmol.js WebGL Engine"]
-        Charts["Recharts Radar & Visuals"]
+        Charts["Recharts Radar & Composition"]
     end
 
-    subgraph API ["Next.js Serverless Route Handlers"]
-        GenRoute["/api/generate (Gemini 1.5)"]
-        BioEngine["Deterministic Bio-Calculator"]
+    subgraph API ["Backend (backend/ — Express TS API :5000)"]
+        Routes["/api/generate • /api/optimize • /api/validate-stability • /api/benchmarks"]
+        BioEngine["Deterministic Bio-Calculator & Helical Wheel"]
+        Protease["Protease Degradation Shield"]
         PDBBuilder["Alpha-Helix PDB Synthesizer"]
     end
 
     subgraph External ["External AI Service"]
-        Gemini["Google Gemini 1.5 Flash API"]
+        Gemini["Google Gemini API (@google/genai — gemini-3.5-flash-lite)"]
     end
 
-    UI -->|Payload Desain| GenRoute
-    GenRoute -->|Prompt Structured JSON| Gemini
+    UI -->|REST JSON Payload| Routes
+    Routes -->|Structured JSON + 10s Timeout| Gemini
     Gemini -->|Candidate Sequence| BioEngine
+    BioEngine --> Protease
     BioEngine -->|Biophysical Metrics| PDBBuilder
     PDBBuilder -->|JSON + PDB String| UI
     UI --> WebGL
@@ -82,12 +84,13 @@ flowchart LR
 ```
 
 ### 2.2 Tech Stack
-* **Framework:** Next.js 14+ (App Router, TypeScript)
-* **Styling & Icons:** Tailwind CSS, Lucide React, Class Variance Authority (CVA)
-* **3D Molecular Visualization:** `3Dmol.js` (WebGL-based, zero dependency server GPU)
-* **Data Visualization:** Recharts (Radar Chart, Metric Cards)
-* **AI Engine:** Google Gemini 1.5 Flash API (Structured Outputs via JSON Schema)
-* **Hosting & CI/CD:** Vercel (Auto-deploy dari GitHub)
+* **Monorepo Structure:** Single-branch (`main`) memisahkan `frontend/` dan `backend/` (+ root `concurrently` runner).
+* **Backend (`backend/`):** Node.js 20+ LTS, **Express (`^4.21.2`)**, TypeScript (`tsx` dev watcher & `tsc` build), `cors`, `dotenv`.
+* **AI Engine:** Google Gemini API via `@google/genai` (default `gemini-3.5-flash-lite` dengan `AbortSignal` timeout 10s & deterministic heuristic fallback — **zero ML training**).
+* **Frontend (`frontend/`):** **Next.js (`16.4.6` App Router)** + React 19, TypeScript, Tailwind CSS v4, Zustand (`usePeptideStore`), Lucide React. *(Catatan: komponen UI bersifat client-first sehingga bila diperlukan di fase lanjutan tetap portabel).*
+* **3D Molecular Visualization:** `3Dmol.js` (WebGL-based, zero dependency server GPU).
+* **Data Visualization:** Recharts (Radar Chart, Metric Cards, Amino Acid Profile).
+* **Hosting & CI/CD:** Frontend di Vercel + Backend Express di Node host (Railway / Render / VPS).
 
 ### 2.3 Formula Biofisika & Kredibilitas Ilmiah
 Sistem menghitung parameter berikut secara deterministik (menghilangkan risiko halusinasi LLM):
@@ -114,8 +117,8 @@ stateDiagram-v2
     ParametersConfigured --> Generating: Klik 'Generate Novel Peptide'
     
     state Generating {
-        [*] --> CallGemini: Request ke Gemini 1.5 Flash
-        CallGemini --> ComputeBio: Hitung Charge & Hydrophobicity
+        [*] --> CallGemini: Request ke Express API -> Gemini
+        CallGemini --> ComputeBio: Hitung Charge, Hydrophobicity & Protease
         ComputeBio --> BuildPDB: Susun Koordinat Atom 3D PDB
         BuildPDB --> [*]
     }
@@ -207,7 +210,7 @@ export interface PeptideGenerationRequest {
   safetyThreshold: 'high-selectivity' | 'balanced';
 }
 
-// Skema Output Gemini 1.5 (Structured JSON)
+// Skema Output Gemini (Structured JSON)
 export interface GeminiPeptideOutput {
   candidateName: string;
   sequence: string; // 1-letter code, e.g. "KWKLFKKIEKVGQNVRDG"
@@ -251,85 +254,53 @@ export interface PeptideGenerationResponse {
 
 ## 6. Implementation Plan & Pembagian Tugas Tim 2 Orang
 
-Untuk memastikan proyek ini selesai tepat waktu sebelum **21 November 2026** dengan kualitas juara, tugas dibagi menjadi dua peran yang terisolasi dengan kontrak data (*mock data*) yang jelas sejak Hari 1.
+Untuk memastikan proyek ini selesai tepat waktu sebelum **21 November 2026** tanpa *merge conflict* dan **tanpa training model ML berat**, tim menjalankan strategi **Backend-First di 1 Branch (`main`)** (detail operasional ada di [TEAM_WORKFLOW.md](../TEAM_WORKFLOW.md)):
 
-```
-+--------------------------------------------------------------------------------+
-|                             PEMBAGIAN PERAN TIM                                |
-+----------------------------------------------------+---------------------------+
-| PERSON 1: Frontend, 3D WebGL & Creative Lead       | PERSON 2: AI Engine, Bio  |
-|                                                    | Math & Full-Stack Lead    |
-| • UI Layout (Next.js 14, Tailwind, Lucide)         | • Gemini 1.5 API Prompt   |
-| • 3Dmol.js WebGL Canvas & Molecule Styling         | • Formula Biofisika       |
-| • Visualisasi Grafik Radar (Recharts)              | • Generator PDB 3D Atom   |
-| • Responsive Design & Client Interactions          | • Next.js API Routes      |
-| • Produksi Video Demo (3-4 Menit) & Slide          | • Dokumentasi Devpost &   |
-|                                                    |   GitHub README           |
-+----------------------------------------------------+---------------------------+
+```text
++------------------------------------------------------------------------------------+
+|                        PEMBAGIAN PERAN TIM (BACKEND-FIRST)                         |
++-----------------------------------------+------------------------------------------+
+| IRFAN (Ketua — AI & Optimization Lead)  | PAS / PASHINOH (Biophysics & Validation) |
+|                                         |                                          |
+| • Gemini Orchestration (gemini.ts)      | • Bio-Calculator (calculators.ts)        |
+| • Profil Patogen WHO (pathogens.ts)     | • Skala Eisenberg & Helical Wheel 2D     |
+| • Mutation Optimizer (POST /optimize)   | • PDB 3D Coordinate Synthesizer          |
+| • Clinical Benchmarks (GET /benchmarks) | • Protease Shield (POST /validate)       |
+| • Koordinasi Endpoint & Devpost Docs    | • Validasi Geometri & Uji Endpoint       |
++-----------------------------------------+------------------------------------------+
+| Catatan Fase Frontend (Setelah Backend Solid): integrasi UI Next.js + 3Dmol WebGL   |
+| (frontend/) & produksi video demo dikerjakan bersama dari fondasi yang sudah ada.  |
++------------------------------------------------------------------------------------+
 ```
 
-### 6.1 Kontrak Data Handoff (Hari 1)
-Agar Person 1 tidak terhambat menunggu API Person 2 selesai:
-* Person 2 membuat file `mock-peptide.json` berisi contoh respon lengkap (sekuens, metrik biofisika, dan sampel string PDB).
-* Person 1 langsung membangun seluruh UI, kanvas 3D, dan chart menggunakan mock data tersebut.
-* Pada Hari ke-6, Person 1 dan Person 2 cukup menghubungkan endpoint API sungguhan.
+### 6.1 Isolasi Modul & Kontrak API
+Agar Irfan dan Pas bisa bekerja paralel di branch `main` tanpa bentrok:
+* Keduanya bekerja di dalam `backend/src/` (Express API `:5000`), namun di sub-folder modul masing-masing (`ai/` & `benchmarks/` untuk Irfan; `bio-engine/` & `validators/` untuk Pas).
+* Kontrak tipe data dikunci bersama di `backend/src/types/peptide.ts` dan diekspos lewat `backend/src/server.ts`.
+* Folder `frontend/` sementara diparkir (tetap siap pakai untuk integrasi Fase 2) selama pengerjaan inti backend berlangsung.
 
 ---
 
-### 6.2 Jadwal Kerja Harian (10 Hari Sprint)
+### 6.2 Roadmap Eksekusi (Menuju 21 Nov 2026)
 
-#### 📅 Hari 1–2 (11–12 Nov) — Setup Pondasi & Eksperimen 3D
-* **Person 1 (Frontend):**
-  * Inisialisasi Next.js 14 (App router), Tailwind CSS, dan komponen dasar.
-  * Buat layout dual-panel dashboard responsif.
-  * Uji coba integrasi script `3Dmol.js` di React: render satu file PDB dummy di canvas WebGL.
-* **Person 2 (AI & Backend):**
-  * Setup project repository GitHub, konfigurasi environment (`GEMINI_API_KEY`).
-  * Tulis modul TypeScript kalkulator biofisika: tabel skala Eisenberg, formula Net Charge, dan Momen Hidrofobik.
-  * Buat `mock-peptide.json` dan berikan ke Person 1.
+#### 📅 Fase 1 — Solidifikasi Backend & Core Algorithms (Express TS)
+* **Irfan (AI & Optimization):**
+  * Konfigurasi Gemini API (`gemini-3.5-flash-lite` + timeout 10s + fallback deterministik) di `backend/src/gemini.ts`.
+  * Lengkapi profil patogen prioritas WHO (`pathogens.ts`).
+  * Upgrade `mutation-optimizer.ts` (`POST /api/optimize`) menjadi *closed-loop candidate scanner* & perkuat `clinical-peptides.ts` (`GET /api/benchmarks`).
+* **Pas / Pashinoh (Biophysics, Geometry & Protease Validation):**
+  * Perkuat engine biofisika (`calculators.ts`, `eisenberg-scale.ts`) dan proyeksi 2D `helical-wheel.ts`.
+  * Kembangkan `validators/protease-shield.ts` (`POST /api/validate-stability`) untuk deteksi pemotongan enzim (Trypsin/Chymotrypsin) & stabilitas plasma.
+  * Pastikan keluaran `.PDB` dari `pdb-generator.ts` akurat untuk viewer 3D WebGL maupun PyMOL.
 
-#### 📅 Hari 3–4 (13–14 Nov) — Core Engines Development
-* **Person 1 (Frontend):**
-  * Bangun komponen **Pathogen Selector** (kartu interaktif MRSA, Pseudomonas, dll.).
-  * Bangun kontrol interaksi 3D (tombol ganti warna muatan vs hidrofobisitas, toggle pita vs permukaan).
-  * Pasang **Radar Chart** (Recharts) menggunakan data mock.
-* **Person 2 (AI & Backend):**
-  * Bangun algoritma **PDB Alpha-Helix Synthesizer**: fungsi matematika untuk menghasilkan string PDB atom ($N, C_\alpha, C, O$) berdasarkan sekuens asam amino.
-  * Uji file PDB hasil generator di software viewer online untuk memastikan formatnya valid.
-  * Buat route handler `/api/generate` terhubung ke kalkulator biofisika.
+#### 📅 Fase 2 — Integrasi Frontend Studio & Visual Polish (`frontend/`)
+* Sambungkan UI `frontend/` (`3Dmol.js` Canvas, Radar Chart, Pathogen Selector, Export Suite) langsung ke seluruh endpoint Express (`GET /api/benchmarks`, `POST /api/generate`, `POST /api/optimize`, `POST /api/validate-stability`).
+* Bersihkan fallback route duplikat jika sudah terhubung penuh ke server Express, lalu uji responsivitas lintas browser.
 
-#### 📅 Hari 5–6 (15–16 Nov) — Integrasi AI Gemini & Penggabungan Sistem
-* **Person 1 (Frontend):**
-  * Bangun komponen State Loading & Animasi Bioinformatika saat proses generate berlangsung.
-  * Bangun fitur **Export Suite** (tombol download `.pdb`, copy FASTA, modal protokol sintesis).
-* **Person 2 (AI & Backend):**
-  * Tulis prompt engineering biokimia untuk Google Gemini 1.5 Flash menggunakan JSON Schema resmi.
-  * Sambungkan respon Gemini ke modul biofisika & PDB generator.
-  * **Milestone Integrasi:** Person 1 mengganti mock data dengan pemanggilan API nyata. Sistem berjalan *end-to-end*!
-
-#### 📅 Hari 7–8 (17–18 Nov) — Polishing, Testing & Deploy
-* **Person 1 (Frontend):**
-  * Polish visual micro-interactions (efek glow, dark mode accents, tooltip penjelasan metrik).
-  * Uji coba kompatibilitas di browser Chrome, Firefox, Safari, dan layar mobile/tablet.
-* **Person 2 (AI & Backend):**
-  * Deploy aplikasi ke Vercel (pastikan environment variable aktif dan live link publik dapat diakses).
-  * Buat fallback error-handling (jika quota API bermasalah, otomatis gunakan kandidat kurasi cadangan tanpa crash).
-  * Susun draf teks pendaftaran Devpost dan tulis `README.md` repositori GitHub lengkap dengan diagram.
-
-#### 📅 Hari 9–10 (19–20 Nov) — Produksi Video Demo & Finalisasi
-* **Person 1 (Creative & Video):**
-  * Rekam video demo aplikasi (durasi 3–4 menit) sesuai naskah di blueprint.
-  * Tambahkan voiceover berbahasa Inggris yang jelas, teks judul dinamis, dan musik latar profesional.
-  * Render video resolusi 1080p dan unggah ke YouTube/Vimeo.
-* **Person 2 (Documentation & Submission):**
-  * Lengkapi seluruh kolom formulir Devpost (*Inspiration, What it does, How we built it, Challenges, Accomplishments, Learnings, Next steps*).
-  * Periksa kembali kepatuhan aturan hackathon (klausa pengungkapan penggunaan AI / *AI Disclosure*).
-  * Pastikan repositori GitHub bersifat publik (*Public*) dengan lisensi open-source (MIT).
-
-#### 📅 Hari 11 (21 Nov) — Final Review & Submission
-* **Person 1 & Person 2 Bersama-sama:**
-  * Lakukan *dry run* pengujian link web live di Vercel, link video YouTube, dan link GitHub.
-  * Tekan tombol **Submit to STEM2Connect Hackathon** sebelum batas waktu 20:59 PST.
+#### 📅 Fase 3 — Deploy, Video Demo & Devpost Submission (s.d. 21 Nov)
+* Deploy Backend Express (`backend/`) dan Frontend (`frontend/`) serta verifikasi link publik & `GEMINI_API_KEY` environment variable.
+* Rekam video demo 3–4 menit (1080p) menampilkan generate peptida, mutasi, helical wheel/protease shield, rotasi 3D WebGL, dan ekspor `.PDB`.
+* Lengkapi pengisian form Devpost + *AI Disclosure* + lisensi MIT sebelum batas waktu **21 November 2026, 20:59 PST**.
 
 ---
 

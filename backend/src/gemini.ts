@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { PathogenProfile, PeptideDesignParams } from '@/types/peptide';
+import { PathogenProfile, PeptideDesignParams } from './types/peptide';
 
 export interface RawAiPeptideOutput {
   candidateName: string;
@@ -50,13 +50,15 @@ export async function generatePeptideWithGemini(
 
 Respond ONLY with raw valid JSON. Do not wrap in markdown quotes if possible.`;
 
+    const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model,
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         responseMimeType: 'application/json',
-        temperature: 0.7
+        temperature: 0.7,
+        abortSignal: AbortSignal.timeout(10000)
       }
     });
 

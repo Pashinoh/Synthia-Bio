@@ -7,7 +7,7 @@
 
 1. **Fase 1 (Sekarang): Fokus 100% Bikin Backend Solid Berdua!**
    * Urusan *Frontend (`frontend/`)* kita **parkir dulu** (fondasi FE sudah ada dan jalan, nanti tinggal poles di akhir kalau Backend sudah matang).
-   * **TIDAK ADA TRAINING MODEL ML BERAT:** Kita tidak pakai training PyTorch/TensorFlow dari nol yang bikin laptop meledak. Semua kecerdasan bertumpu pada **Google Gemini 1.5 API + Algoritma Biofisika & Matematika Komputasi (TypeScript)**.
+   * **TIDAK ADA TRAINING MODEL ML BERAT:** Kita tidak pakai training PyTorch/TensorFlow dari nol yang bikin laptop meledak. Semua kecerdasan bertumpu pada **Google Gemini API (`gemini-3.5-flash-lite`) + Algoritma Biofisika & Matematika Komputasi (TypeScript)**.
 2. **Tetap 1 Branch (`main`) & Anti-Bentrok:**
    * **Irfan** dan **Pas (Pashinoh)** sama-sama ngoding di dalam folder `backend/src/`, tetapi di **sub-folder modul yang terpisah** supaya tidak pernah kena *merge conflict*.
 
@@ -19,7 +19,7 @@
 backend/src/
 │
 ├── 👑 WILAYAH IRFAN (AI Orchestration, Mutation Optimizer & Clinical Benchmarks)
-│   ├── gemini.ts                        # Prompt engineering & structured JSON Gemini 1.5
+│   ├── gemini.ts                        # Prompt engineering & structured JSON Gemini API
 │   ├── pathogens.ts                     # Profil membran superbug WHO (MRSA, Pseudomonas, dll.)
 │   ├── ai/
 │   │   └── mutation-optimizer.ts        # Algoritma In-Silico Directed Evolution (substitusi residu)

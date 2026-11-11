@@ -30,6 +30,9 @@ test('Biophysical metrics & PDB generator produce valid outputs for standard AMP
   const metrics = calculateBiophysicalMetrics(seq);
   assert.ok(metrics.therapeuticSelectivityIndex >= 10 && metrics.therapeuticSelectivityIndex <= 99);
   assert.equal(getAminoAcidProfile(seq).reduce((acc, row) => acc + row.count, 0), seq.length);
+  // Aliphatic Index (Ikai 1980): pure Ala sequence -> X(Ala)=100% -> index 100
+  assert.equal(calculateBiophysicalMetrics('AAAAAAAAAA').aliphaticIndex, 100);
+  assert.ok(metrics.aliphaticIndex >= 0 && Number.isFinite(metrics.aliphaticIndex));
 
   const pdb = generateAlphaHelixPDB(seq, 'TestAMP');
   assert.ok(pdb.includes('ATOM'));

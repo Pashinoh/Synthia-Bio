@@ -1,6 +1,31 @@
 import { AMINO_ACID_TABLE, BOMAN_TRANSFER_ENERGIES } from './eisenberg-scale';
 import { BiophysicalMetrics, AminoAcidCount, HemolysisRisk } from '../types/peptide';
 
+// ---- Calibration constants (hemolysis risk bands & Therapeutic Selectivity Index) ----
+// Rationale: the accepted AMP physicochemical envelope — cationic net charge +4..+8 at
+// pH 7.4, moderate mean hydrophobicity (Eisenberg scale ~0.2..0.55), amphipathic moment
+// window ~0.4..0.7. Values reproduce the pre-refactor inline logic exactly (parity).
+const HEMOLYSIS_HIGH_HYDRO = 0.55;        // mean hydrophobicity alone => High risk
+const HEMOLYSIS_HIGH_PRECONDITION = 0.45; // combined with moment below => High risk
+const HEMOLYSIS_HIGH_MOMENT = 0.65;
+const HEMOLYSIS_MODERATE_HYDRO = 0.38;
+const HEMOLYSIS_MODERATE_MOMENT = 0.55;
+const TSI_BASE = 75;
+const TSI_CHARGE_WINDOW: [number, number] = [4, 8]; // cationic sweet spot
+const TSI_CHARGE_BONUS = 15;
+const TSI_MOMENT_WINDOW: [number, number] = [0.4, 0.7]; // amphipathic sweet spot
+const TSI_MOMENT_BONUS = 10;
+const TSI_HIGH_RISK_PENALTY = 35;
+const TSI_MODERATE_RISK_PENALTY = 10;
+const TSI_MIN = 10;
+const TSI_MAX = 99;
+
+// Aliphatic Index weights (Ikai 1980): thermal-stability proxy from Ala/Val/Ile/Leu
+// mole percentages. Frame: lab-credibility signal, not a primary safety metric.
+const ALIPHATIC_A_WEIGHT = 1.0;
+const ALIPHATIC_V_WEIGHT = 2.9;
+const ALIPHATIC_IL_WEIGHT = 3.9;
+
 /**
  * Calculates deterministic biophysical metrics for any peptide sequence.
  * 100% mathematical, zero hallucinations.
@@ -19,6 +44,10 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
   let totalHydrophobicity = 0;
   let hydrophobicResidues = 0;
   let bomanSum = 0;
+  let alaCount = 0;
+  let valCount = 0;
+  let ileCount = 0;
+  let leuCount = 0;
 
   // For Hydrophobic Moment (<mu_H>):
   // Vector sum with periodicity delta = 100 degrees (1.74533 rad) for alpha-helix
@@ -43,6 +72,12 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
         hydrophobicResidues++;
       }
 
+      // Aliphatic Index residue counts
+      if (aa === 'A') alaCount++;
+      else if (aa === 'V') valCount++;
+      else if (aa === 'I') ileCount++;
+      else if (aa === 'L') leuCount++;
+
       // Amphipathic vector component
       const angle = i * deltaRad;
       sumCos += data.eisenbergHydrophobicity * Math.cos(angle);
@@ -66,20 +101,28 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
   // High hydrophobicity (> 0.5) + very high hydrophobic moment (> 0.7) usually causes human hemolysis.
   // Optimal AMPs have high charge (+4 to +8) and moderate hydrophobicity (0.2 to 0.45).
   let hemolysisRisk: HemolysisRisk = 'Low';
-  if (meanHydrophobicity > 0.55 || (meanHydrophobicity > 0.45 && hydrophobicMoment > 0.65)) {
+  if (meanHydrophobicity > HEMOLYSIS_HIGH_HYDRO || (meanHydrophobicity > HEMOLYSIS_HIGH_PRECONDITION && hydrophobicMoment > HEMOLYSIS_HIGH_MOMENT)) {
     hemolysisRisk = 'High';
-  } else if (meanHydrophobicity > 0.38 || hydrophobicMoment > 0.55) {
+  } else if (meanHydrophobicity > HEMOLYSIS_MODERATE_HYDRO || hydrophobicMoment > HEMOLYSIS_MODERATE_MOMENT) {
     hemolysisRisk = 'Moderate';
   }
 
   // 4. Therapeutic Selectivity Index (0 - 100)
   // Higher is better: prefers bacterial membrane disruption over mammalian hemolysis
-  let selectivity = 75;
-  if (netCharge >= +4 && netCharge <= +8) selectivity += 15;
-  if (hydrophobicMoment >= 0.4 && hydrophobicMoment <= 0.7) selectivity += 10;
-  if (hemolysisRisk === 'High') selectivity -= 35;
-  if (hemolysisRisk === 'Moderate') selectivity -= 10;
-  selectivity = Math.max(10, Math.min(99, selectivity));
+  let selectivity = TSI_BASE;
+  if (netCharge >= TSI_CHARGE_WINDOW[0] && netCharge <= TSI_CHARGE_WINDOW[1]) selectivity += TSI_CHARGE_BONUS;
+  if (hydrophobicMoment >= TSI_MOMENT_WINDOW[0] && hydrophobicMoment <= TSI_MOMENT_WINDOW[1]) selectivity += TSI_MOMENT_BONUS;
+  if (hemolysisRisk === 'High') selectivity -= TSI_HIGH_RISK_PENALTY;
+  if (hemolysisRisk === 'Moderate') selectivity -= TSI_MODERATE_RISK_PENALTY;
+  selectivity = Math.max(TSI_MIN, Math.min(TSI_MAX, selectivity));
+
+  // 5. Aliphatic Index (Ikai 1980) — thermal stability proxy
+  const aliphaticIndex = parseFloat(
+    (
+      ((alaCount + ALIPHATIC_V_WEIGHT * valCount + ALIPHATIC_IL_WEIGHT * (ileCount + leuCount)) / n) *
+      100
+    ).toFixed(1)
+  );
 
   return {
     netCharge,
@@ -89,6 +132,7 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
     bomanIndex,
     predictedHemolysisRisk: hemolysisRisk,
     therapeuticSelectivityIndex: selectivity,
+    aliphaticIndex,
     hydrophobicResidueRatio: hydrophobicRatio,
     positiveResidueCount: positiveCount
   };

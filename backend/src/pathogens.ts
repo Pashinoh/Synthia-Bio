@@ -60,6 +60,36 @@ export const WHO_PATHOGENS: PathogenProfile[] = [
     },
     recommendedLength: [18, 26],
     suggestedChargeRange: [+6, +9]
+  },
+  {
+    id: 'ecoli-cre',
+    name: 'E. coli (CRE)',
+    scientificName: 'Escherichia coli (Carbapenem-resistant Enterobacterales)',
+    gramType: 'negative',
+    whoPriority: 'Critical',
+    targetDiseases: 'Urosepsis, intra-abdominal abscesses, multidrug-resistant bacteremia',
+    membraneCharacteristics: {
+      outerMembraneCharge: -42,
+      pgLipidRatio: 32,
+      barrierDescription: 'LPS-anchored outer membrane stabilized by Mg2+/Ca2+ bridges and negatively charged cardiolipin microdomains.'
+    },
+    recommendedLength: [16, 22],
+    suggestedChargeRange: [+5, +8]
+  },
+  {
+    id: 'efaecium-vre',
+    name: 'E. faecium (VRE)',
+    scientificName: 'Enterococcus faecium (Vancomycin-resistant)',
+    gramType: 'positive',
+    whoPriority: 'High',
+    targetDiseases: 'Endocarditis, catheter-associated bloodstream infections, ICU sepsis',
+    membraneCharacteristics: {
+      outerMembraneCharge: -30,
+      pgLipidRatio: 62,
+      barrierDescription: 'Thick Gram-positive peptidoglycan matrix with altered D-Ala-D-Lac precursors and high phosphatidylglycerol content.'
+    },
+    recommendedLength: [16, 22],
+    suggestedChargeRange: [+5, +8]
   }
 ];
 

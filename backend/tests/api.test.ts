@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from '../src/pathogens';
-import { calculateBiophysicalMetrics, getAminoAcidProfile } from '../src/bio-engine/calculators';
+import { calculateBiophysicalMetrics, getAminoAcidProfile, computeChargePhCurve } from '../src/bio-engine/calculators';
 import { generateAlphaHelixPDB } from '../src/bio-engine/pdb-generator';
 import { computeHelicalWheel } from '../src/bio-engine/helical-wheel';
 import { analyzeProteaseStability } from '../src/validators/protease-shield';
@@ -72,6 +72,16 @@ test('Pas modules (protease shield & helical wheel) validate sequences properly'
 
   const wheel = computeHelicalWheel(seq);
   assert.equal(wheel.nodes.length, seq.length);
+
+  // Charge-pH curve: default range pH 2.0-12.0 step 0.5 => 21 points, pI included
+  const curve = computeChargePhCurve(seq);
+  assert.equal(curve.points.length, 21);
+  assert.equal(curve.points[0].ph, 2.0);
+  assert.equal(curve.points[20].ph, 12.0);
+  assert.ok(curve.points[0].charge > 5); // strongly cationic in acid
+  assert.ok(curve.points[20].charge < 0); // acidic residues dominate in base
+  const nearP = curve.points.find((p) => Math.abs(p.ph - curve.isoelectricPoint) < 0.26);
+  assert.ok(nearP && Math.abs(nearP.charge) < 1.0);
 });
 
 test('Protease shield covers elastase with proline protection and monotone half-life', () => {

@@ -70,6 +70,17 @@ export interface ClosedLoopOptimizationSummary {
   notes: string;
 }
 
+// [PAS] Deterministic charge-vs-pH titration profile (see computeChargePhCurve)
+export interface ChargePhPoint {
+  ph: number; // sampled pH value
+  charge: number; // net charge (Henderson-Hasselbalch model)
+}
+
+export interface ChargePhCurve {
+  points: ChargePhPoint[];
+  isoelectricPoint: number;
+}
+
 export interface GeneratedPeptide {
   id: string;
   name: string;

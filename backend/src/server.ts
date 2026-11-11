@@ -12,7 +12,7 @@ import {
 } from './types/peptide';
 import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from './pathogens';
 import { synthesizePeptideWithAI } from './gemini';
-import { calculateBiophysicalMetrics, getAminoAcidProfile } from './bio-engine/calculators';
+import { calculateBiophysicalMetrics, getAminoAcidProfile, computeChargePhCurve } from './bio-engine/calculators';
 import { generateAlphaHelixPDB } from './bio-engine/pdb-generator';
 import { computeHelicalWheel } from './bio-engine/helical-wheel';
 import { compareAgainstBenchmarks, getClinicalBenchmarks } from './benchmarks/clinical-peptides';
@@ -181,11 +181,13 @@ app.post('/api/validate-stability', (req: Request, res: Response) => {
 
     const proteaseReport = analyzeProteaseStability(seqCheck.sequence);
     const helicalWheel = computeHelicalWheel(seqCheck.sequence);
+    const chargePhCurve = computeChargePhCurve(seqCheck.sequence);
     res.json({
       success: true,
       sequence: seqCheck.sequence,
       proteaseReport,
-      helicalWheel
+      helicalWheel,
+      chargePhCurve
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Stability validation failed';

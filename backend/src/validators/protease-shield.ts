@@ -73,7 +73,7 @@ export function analyzeProteaseStability(sequence: string): ProteaseStabilityRep
   };
   const weightedSites = cleavageSites.reduce((acc, site) => acc + ENZYME_WEIGHTS[site.enzyme], 0);
   const penalty = Math.min(65, weightedSites * 6);
-  const stabilityScore = Math.max(25, 95 - penalty);
+  const stabilityScore = Math.round(Math.max(25, 95 - penalty));
   const estimatedHalfLifeMinutes = Math.round(15 + stabilityScore * 1.8);
 
   return {

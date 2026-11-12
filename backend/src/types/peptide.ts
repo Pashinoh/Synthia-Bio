@@ -61,6 +61,32 @@ export interface SynthesisProtocol {
   storageCondition: string; // e.g. "Lyophilized powder at -20°C"
 }
 
+export interface SynthesisLiabilityFlag {
+  code:
+    | 'OXIDATION_CYS'
+    | 'OXIDATION_MET'
+    | 'ASPARTIMIDE_RISK'
+    | 'N_TERM_PYROGLU'
+    | 'HYDROPHOBIC_STRETCH'
+    | 'BETA_BRANCHED_CLUSTER'
+    | 'AGGREGATION_RATIO'
+    | 'LOW_SOLUBILITY';
+  severity: 'Low' | 'Moderate' | 'High';
+  motif: string;
+  description: string;
+  mitigation: string;
+}
+
+export interface SynthesisFeasibilityReport {
+  feasibilityScore: number; // 0 - 100 (higher = easier Fmoc-SPPS & storage)
+  sppsDifficulty: 'Easy' | 'Moderate' | 'Challenging';
+  aqueousSolubility: 'Good' | 'Moderate' | 'Low';
+  hydrophobicFraction: number; // 0 - 1
+  chargedFraction: number; // 0 - 1
+  liabilities: SynthesisLiabilityFlag[];
+  recommendedMitigations: string[];
+}
+
 export interface ClosedLoopOptimizationSummary {
   applied: boolean;
   originalSequence: string;
@@ -93,6 +119,7 @@ export interface GeneratedPeptide {
   aiProviderUsed?: GenerationSource;
   aiModelUsed?: string;
   optimizationSummary?: ClosedLoopOptimizationSummary;
+  synthesisFeasibility?: SynthesisFeasibilityReport;
   metrics: BiophysicalMetrics;
   aminoAcidProfile: AminoAcidCount[];
   pdbContent: string; // Valid 3D atomic coordinates in PDB format
@@ -114,6 +141,31 @@ export interface GeneratePeptideRequest {
 export interface GeneratePeptideResponse {
   success: boolean;
   peptide?: GeneratedPeptide;
+  error?: string;
+  isMockFallback?: boolean;
+}
+
+export interface ScreenedPeptideCandidate {
+  rank: number;
+  compositeFitness: number;
+  proteaseStabilityScore: number;
+  estimatedHalfLifeMinutes: number;
+  selectivityVsPexiganan: number | null;
+  selectivityVsMelittin: number | null;
+  tradeoffSummary: string;
+  peptide: GeneratedPeptide;
+}
+
+export interface GenerateBatchRequest extends GeneratePeptideRequest {
+  maxCandidates?: number; // 2 - 4, default 3
+}
+
+export interface GenerateBatchResponse {
+  success: boolean;
+  targetPathogen: string;
+  candidateCount: number;
+  bestCandidate?: ScreenedPeptideCandidate;
+  candidates: ScreenedPeptideCandidate[];
   error?: string;
   isMockFallback?: boolean;
 }

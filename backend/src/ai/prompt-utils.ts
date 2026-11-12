@@ -7,42 +7,43 @@ export interface RawAiPeptideOutput {
   membraneAffinityExplanation: string;
 }
 
-export const AMP_SYSTEM_INSTRUCTION = `You are SynthiaBio, an expert computational biochemist and peptide engineer.
-Design a novel, de novo amphipathic alpha-helical antimicrobial peptide (AMP) optimized for the target bacterial pathogen.
-
-BIOPHYSICAL DESIGN CONSTRAINTS (CRITICAL):
-1. Amino acid alphabet ONLY: A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y.
-2. Exact sequence length matching the user request.
-3. Ideal Cationic Net Charge at pH 7.4: +4 to +8 (enriched in Lysine 'K' and Arginine 'R').
-4. Amphipathicity (i, i+3, i+4 helical wheel periodicity): Cluster hydrophobic residues (L, I, V, F, W) on one face of the helix and polar/cationic residues (K, R, S, Q) on the opposite face.
-5. Do NOT output simplistic dipeptide or homopolymer repeats (avoid patterns like KWKWKW or KKKKKK); use biologically diverse amphipathic motifs.
-6. Avoid excessive global hydrophobicity (>0.50 on Eisenberg scale) to minimize human red blood cell lysis (hemolysis).
-7. Return STRICTLY valid raw JSON matching this schema without markdown formatting:
-{
-  "candidateName": "string (e.g., Synthia-MRSA-X1)",
-  "sequence": "string (uppercase 1-letter codes ONLY, exact requested length)",
-  "molecularRationale": "string (2-3 scientific sentences explaining amphipathic structure & pore mechanism)",
-  "membraneAffinityExplanation": "string (2-3 scientific sentences explaining electrostatic binding to target pathogen lipids)"
-}`;
+export const AMP_SYSTEM_INSTRUCTION = `You are SynthiaBio, a computational peptide engineer. Design a de novo amphipathic alpha-helical antimicrobial peptide (AMP).
+RULES:
+1. Standard 20 uppercase amino acids ONLY (ACDEFGHIKLMNPQRSTVWY), exact requested length.
+2. Net charge +4 to +9 at pH 7.4 (use K, R).
+3. Amphipathic (i, i+3, i+4) spacing: hydrophobic face (L,I,V,F,W,A) opposite polar/cationic face (K,R,S,Q,N,G).
+4. NEVER use homopolymers (KKK, LLL) or tandem repeats (KWKWKW, GAVGAVGAV). Use at least 6 distinct amino acids.
+5. Keep mean Eisenberg hydrophobicity < 0.40 to avoid human erythrocyte hemolysis.
+6. Reply ONLY valid raw JSON:
+{"candidateName":"string","sequence":"string","molecularRationale":"2 concise sentences","membraneAffinityExplanation":"2 concise sentences"}`;
 
 export function buildPeptidePrompt(
   pathogen: PathogenProfile,
   params: PeptideDesignParams
 ): string {
-  const safetyNote =
-    params.safetyThreshold === 'high-selectivity'
-      ? 'STRICT SAFETY REQUIREMENT: Optimize for very low mammalian hemolysis risk (keep mean Eisenberg hydrophobicity < 0.38, include balancing polar/moderate residues like S, Q, or A).'
-      : 'Balanced selectivity and potent antimicrobial membrane disruption.';
+  return `Design a ${params.sequenceLength}aa AMP for ${pathogen.name} (${pathogen.scientificName}, Gram-${pathogen.gramType}, WHO ${pathogen.whoPriority}).
+Membrane: ${pathogen.membraneCharacteristics.outerMembraneCharge}mV, ${pathogen.membraneCharacteristics.pgLipidRatio}% PG lipids (${pathogen.membraneCharacteristics.barrierDescription}).
+Target charge: +${pathogen.suggestedChargeRange[0]} to +${pathogen.suggestedChargeRange[1]}. Mechanism: ${params.poreMechanism}. Safety: ${params.safetyThreshold}.
+Return ONLY JSON.`;
+}
 
-  return `Design a ${params.sequenceLength}-amino acid antimicrobial peptide targeting:
-- Pathogen: ${pathogen.name} (${pathogen.scientificName}) [WHO Priority: ${pathogen.whoPriority}]
-- Gram Type: Gram-${pathogen.gramType}
-- Membrane Profile: ${pathogen.membraneCharacteristics.barrierDescription} (Surface Potential: ${pathogen.membraneCharacteristics.outerMembraneCharge} mV, Anionic PG Lipids: ${pathogen.membraneCharacteristics.pgLipidRatio}%)
-- Recommended Net Charge Range: +${pathogen.suggestedChargeRange[0]} to +${pathogen.suggestedChargeRange[1]}
-- Target Pore Mechanism: ${params.poreMechanism} pore formation
-- Safety Profile: ${safetyNote}
-
-Respond ONLY with raw valid JSON. Do not wrap in markdown quotes.`;
+/**
+ * Checks whether a sequence is a low-entropy homopolymer or simple tandem repeat.
+ */
+export function isDegenerateSequence(seq: string): boolean {
+  const minUnique = Math.min(5, Math.max(4, Math.floor(seq.length / 4)));
+  if (new Set(seq).size < minUnique) {
+    return true;
+  }
+  // 4 identical residues in a row (e.g. KKKK, LLLL)
+  if (/(.)\1\1\1/.test(seq)) {
+    return true;
+  }
+  // 2- to 4-residue motif repeated 3+ times consecutively (e.g. KWKWKW, GAVGAVGAV)
+  if (/(.{2,4})\1\1/.test(seq)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -52,14 +53,29 @@ export function adjustSequenceLength(seq: string, targetLength: number): string 
   if (seq.length > targetLength) {
     return seq.slice(0, targetLength);
   }
-  const amphipathicTail = ['K', 'I', 'L', 'A', 'K', 'S', 'L', 'K', 'V', 'Q', 'K', 'L'];
+  const amphipathicTail = ['K', 'I', 'L', 'A', 'K', 'S', 'V', 'R', 'Q', 'L', 'K', 'F'];
   let result = seq;
   let i = 0;
   while (result.length < targetLength) {
-    result += amphipathicTail[i % amphipathicTail.length];
+    const nextAa = amphipathicTail[i % amphipathicTail.length];
+    if (result.endsWith(nextAa + nextAa)) {
+      result += nextAa === 'K' ? 'L' : 'K';
+    } else {
+      result += nextAa;
+    }
     i++;
   }
   return result;
+}
+
+function extractJsonObject(rawText: string): string {
+  const stripped = rawText.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  const firstBrace = stripped.indexOf('{');
+  const lastBrace = stripped.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return stripped.slice(firstBrace, lastBrace + 1);
+  }
+  return stripped;
 }
 
 export function normalizeAiPeptideOutput(
@@ -67,7 +83,7 @@ export function normalizeAiPeptideOutput(
   pathogen: PathogenProfile,
   targetLength: number
 ): RawAiPeptideOutput {
-  const cleanJson = rawText.trim().replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  const cleanJson = extractJsonObject(rawText);
   const parsed = JSON.parse(cleanJson) as Partial<RawAiPeptideOutput>;
 
   let seq = (parsed.sequence || '').toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
@@ -76,6 +92,9 @@ export function normalizeAiPeptideOutput(
   }
   if (seq.length !== targetLength) {
     seq = adjustSequenceLength(seq, targetLength);
+  }
+  if (isDegenerateSequence(seq)) {
+    throw new Error(`Rejected degenerate repetitive sequence (${seq})`);
   }
 
   return {

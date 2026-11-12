@@ -97,7 +97,7 @@ export interface SynthesisFeasibility {
   aqueousSolubility: string;
   hydrophobicFraction: number;
   chargedFraction: number;
-  liabilities: string[];
+  liabilities: Array<string | { description: string; mitigation?: string }>;
   recommendedMitigations: string[];
 }
 

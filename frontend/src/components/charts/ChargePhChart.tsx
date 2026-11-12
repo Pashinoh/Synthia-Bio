@@ -2,7 +2,17 @@
 
 import React from 'react';
 import { ChargePhCurve } from '@/types/peptide';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Dot } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Dot,
+  ReferenceLine,
+} from 'recharts';
 
 interface ChargePhChartProps {
   curve: ChargePhCurve | null;
@@ -48,6 +58,12 @@ export const ChargePhChart: React.FC<ChargePhChartProps> = ({ curve }) => {
             />
             <Line type="monotone" dataKey="charge" stroke="#00F0FF" strokeWidth={2} dot={false} />
             <Dot fill="#00F0FF" />
+            <ReferenceLine
+              x={curve.isoelectricPoint}
+              stroke="#EF4444"
+              strokeDasharray="3 3"
+              label={`pI: ${curve.isoelectricPoint.toFixed(2)}`}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>

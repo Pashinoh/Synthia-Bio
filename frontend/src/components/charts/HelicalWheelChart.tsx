@@ -55,10 +55,9 @@ export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) =
 
           {/* Nodes */}
           {nodes.map((node) => {
-            const angleRad = (node.angleDeg * Math.PI) / 180;
-            const radius = 95;
-            const x = center + radius * Math.cos(angleRad);
-            const y = center - radius * Math.sin(angleRad);
+            const svgRadius = 95;
+            const x = center + node.x * svgRadius;
+            const y = center - node.y * svgRadius;
 
             const colorMap: Record<string, string> = {
               hydrophobic: '#F59E0B',

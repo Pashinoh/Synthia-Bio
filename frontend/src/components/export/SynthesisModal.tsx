@@ -134,7 +134,9 @@ export const SynthesisModal: React.FC<ModalProps> = ({ isOpen, onClose, peptide 
                       {peptide.synthesisFeasibility.liabilities.map((liability, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-[9px] text-amber-400 shrink-0">⚠</span>
-                          <p className="text-[10px] text-slate-300 leading-relaxed">{liability}</p>
+                          <p className="text-[10px] text-slate-300 leading-relaxed">
+                            {typeof liability === 'string' ? liability : liability.description}
+                          </p>
                         </li>
                       ))}
                     </ul>

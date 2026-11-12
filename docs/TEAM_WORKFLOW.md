@@ -1,112 +1,86 @@
-# ⚙️ SynthiaBio — Backend-First Team Workflow Guide
-**Strategi Fokus: Solidkan Backend & Engine Dulu (Zero Model Training), Frontend Belakangan!**
+# ⚙️ SynthiaBio — Team Workflow & Phase Tracker
+
+> **Status Saat Ini (12 Nov 2026):** **Fase 1 (Backend-First) SELESAI** (PR #1–#5 sudah ter-merge ke `main`).  
+> **Fokus Berikutnya:** 3 revisi kecil audit backend untuk Pas + **Fase 2 (Integrasi Frontend Studio)**.  
+> 📌 **Catatan detail untuk Pas (temuan audit + pembagian file FE) ada di [`docs/PAS_HANDOFF_NOTES.md`](./PAS_HANDOFF_NOTES.md).**  
+> 📌 **Kontrak endpoint Backend lengkap ada di [`docs/API_CONTRACT.md`](./API_CONTRACT.md).**
 
 ---
 
-## 🎯 Strategi Utama Kita Sekarang
+## 📊 Status Fase Proyek
 
-1. **Fase 1 (Sekarang): Fokus 100% Bikin Backend Solid Berdua!**
-   * Urusan *Frontend (`frontend/`)* kita **parkir dulu** (fondasi FE sudah ada dan jalan, nanti tinggal poles di akhir kalau Backend sudah matang).
-   * **TIDAK ADA TRAINING MODEL ML BERAT:** Kita tidak pakai training PyTorch/TensorFlow dari nol yang bikin laptop meledak. Semua kecerdasan bertumpu pada **Google Gemini API (`gemini-3.5-flash-lite`) + Algoritma Biofisika & Matematika Komputasi (TypeScript)**.
-2. **Tetap 1 Branch (`main`) & Anti-Bentrok:**
-   * **Irfan** dan **Pas (Pashinoh)** sama-sama ngoding di dalam folder `backend/src/`, tetapi di **sub-folder modul yang terpisah** supaya tidak pernah kena *merge conflict*.
+| Fase | Status | Ringkasan |
+|---|---|---|
+| **Fase 1: Backend & Core Algorithms** | ✅ **Selesai** (3 polish minor untuk Pas) | AI orchestrator (`groq` + `gemini` + `dual` + heuristic), 6 patogen WHO, optimizer mutasi multi-ronde, clinical benchmarks (`Pexiganan`, `Magainin-2`, `LL-37`, `Melittin`), Fmoc-SPPS feasibility, Helical Wheel, 3D `.PDB`, Protease Shield (`Trypsin`, `Chymotrypsin`, `Elastase`), `aliphaticIndex`, `chargePhCurve`, security/rate-limit middleware, 15/15 automated tests |
+| **Fase 2: Integrasi Frontend (`frontend/`)** | 🚧 **Aktif Sekarang** | Sambungkan Next.js UI ke Backend Express (`:5000`), tampilkan Batch Screening, Optimizer, 2D Helical Wheel, Charge-vs-pH Curve, Protease Shield, Benchmarks, SPPS Feasibility, dan rapikan label `Cecropin A` |
+| **Fase 3: Deploy, Video Demo & Devpost** | ⏳ **Berikutnya** (Deadline: 21 Nov 2026) | `LICENSE` MIT, CI/CD, deploy publik FE & BE, video demo 3–4 menit, pengisian form Devpost |
 
 ---
 
-## 📂 Pembagian Wilayah Kerja di `backend/src/` (Irfan vs Pas)
+## 📂 Pembagian Wilayah Kerja — Backend (`backend/src/`) [Terjaga Terpisah]
 
 ```text
 backend/src/
-│
-├── 👑 WILAYAH IRFAN (AI Orchestration, Mutation Optimizer & Clinical Benchmarks)
-│   ├── gemini.ts                        # Prompt engineering & structured JSON Gemini API
-│   ├── pathogens.ts                     # Profil membran superbug WHO (MRSA, Pseudomonas, dll.)
-│   ├── ai/
-│   │   └── mutation-optimizer.ts        # Algoritma In-Silico Directed Evolution (substitusi residu)
-│   └── benchmarks/
-│       └── clinical-peptides.ts         # Komparasi kandidat AI vs obat klinis (Magainin-2, LL-37)
+├── 👑 WILAYAH IRFAN (AI Orchestration, Optimizer, Benchmarks & Security/App)
+│   ├── app.ts                           # Express app, semua 8 rute API + validasi input
+│   ├── server.ts                        # Bootstrapper port Express (:5000)
+│   ├── gemini.ts                        # Router multi-provider (Groq-first auto, Gemini, Dual, Batch)
+│   ├── pathogens.ts                     # 6 profil membran superbug WHO
+│   ├── ai/                              # groq-client, prompt-utils, mutation-optimizer, synthesis-feasibility, peptide-assembler
+│   ├── benchmarks/clinical-peptides.ts  # Magainin-2, Pexiganan, LL-37, Melittin + compare engine
+│   └── middleware/security.ts           # Security headers, CORS allowlist, IP rate limiter
 │
 ├── ⚡ WILAYAH PAS / PASHINOH (Biophysical Math, 3D PDB & Protease Validator)
 │   ├── bio-engine/
-│   │   ├── calculators.ts               # Kalkulator Net Charge, Eisenberg Hydrophobicity, Boman Index
+│   │   ├── calculators.ts               # Net charge, Eisenberg, Aliphatic Index, computeChargePhCurve
 │   │   ├── eisenberg-scale.ts           # Konstanta fisikokimia 20 asam amino standar
-│   │   ├── pdb-generator.ts             # Generator koordinat atom 3D (.PDB) heliks alpha
-│   │   └── helical-wheel.ts             # Proyeksi sudut 2D Schiffer-Edmundson Helical Wheel (100°/residu)
-│   └── validators/
-│       └── protease-shield.ts           # Detektor pemotongan enzim (Trypsin/Chymotrypsin) & stabilitas darah
+│   │   ├── pdb-generator.ts             # Generator koordinat atom 3D (.PDB) heliks alpha + CB
+│   │   └── helical-wheel.ts             # Proyeksi sudut 2D Schiffer-Edmundson Helical Wheel
+│   └── validators/protease-shield.ts    # Scanner Trypsin, Chymotrypsin, Elastase & estimasi half-life
 │
-└── 🤝 FILE BERSAMA (Router Utama)
-    ├── server.ts                        # Express API Server (:5000)
-    └── types/peptide.ts                 # Kontrak tipe data TypeScript
+└── 🤝 KONTRAK BERSAMA
+    └── types/peptide.ts                 # Kontrak tipe data TypeScript backend
 ```
 
----
-
-## 🛠️ Detail Tugas Masing-Masing di Fase 1 (Backend-First)
-
-### 👑 Tugas Irfan (AI & Optimization Lead)
-1. **AI Sequence Synthesis (`src/gemini.ts`):**
-   * Pasang `GEMINI_API_KEY` di `backend/.env` dan pastikan respon JSON dari Gemini selalu konsisten mengikuti panjang asam amino yang diminta.
-2. **In-Silico Mutation Optimizer (`src/ai/mutation-optimizer.ts` — Endpoint: `POST /api/optimize`):**
-   * Mengembangkan algoritma *single-point mutation scanner* yang mencari substitusi 1 huruf asam amino terbaik untuk menaikkan *Therapeutic Selectivity Index* dan menurunkan risiko pecahnya sel darah merah (*hemolysis*).
-3. **Clinical Benchmark Engine (`src/benchmarks/clinical-peptides.ts` — Endpoint: `GET /api/benchmarks`):**
-   * Menyediakan data pembanding peptida standar medis (seperti *Magainin-2*, *LL-37*, dan *Melittin*) agar juri bisa melihat seberapa unggul peptida hasil desain sistem kita.
+### ⚡ Revisi Minor Backend untuk Pas (Lihat Detail di `PAS_HANDOFF_NOTES.md`)
+1. Kalibrasi hemolisis `Melittin` di `calculators.ts` agar kontrol racun terbaca `High Risk` (saat ini masih `Low` / `90`).
+2. Pembulatan `stabilityScore` di `protease-shield.ts` (`Math.round`) agar tidak keluar float panjang (`43.40000000000001`).
+3. Guard `step <= 0` pada `computeChargePhCurve` di `calculators.ts`.
 
 ---
 
-### ⚡ Tugas Pas / Pashinoh (Biophysics, 3D Geometry & Validation Lead)
-*(100% Pure Backend Logic & Math — Tanpa Training Model & Tanpa Nyentuh CSS/Frontend!)*
-1. **Biophysical & Helical Wheel Engine (`src/bio-engine/calculators.ts` & `helical-wheel.ts`):**
-   * Memperkuat perhitungan biofisika (bisa ditambah *Aliphatic Index* untuk ketahanan suhu atau kurva muatan terhadap perubahan pH asam-basa).
-   * Mengembangkan kalkulasi koordinat lingkaran 2D **Helical Wheel** (`helical-wheel.ts`) untuk membuktikan pemisahan sisi hidrofobik dan hidrofilik secara geometris.
-2. **Protease Degradation Shield (`src/validators/protease-shield.ts` — Endpoint: `POST /api/validate-stability`):**
-   * Membangun algoritma scanner yang mendeteksi titik rawan pemotongan peptida oleh enzim tubuh manusia (*Trypsin* & *Chymotrypsin*), menghitung estimasi waktu paruh (*half-life*), dan memberi rekomendasi modifikasi kimia (seperti *D-amino acid capping*).
-3. **3D PDB Coordinate Synthesizer (`src/bio-engine/pdb-generator.ts`):**
-   * Memastikan output string `.PDB` memiliki geometri atom backbone ($N, C_\alpha, C, O, C_\beta$) yang akurat untuk dirender maupun diunduh ke software kimia seperti PyMOL.
+## 🎨 Pembagian Wilayah Kerja — Fase 2 Frontend (`frontend/src/`)
+
+| Developer | Wilayah & Fokus Pekerjaan | File Utama |
+|---|---|---|
+| **👑 Irfan** | Koneksi store & types ke Express `:5000`, 6 patogen WHO, selector AI provider + Batch Screening, UI Mutation Optimizer & Clinical Benchmarks, Fmoc-SPPS feasibility, label mock `Cecropin A` | `types/peptide.ts`, `store/usePeptideStore.ts`, `lib/pathogens.ts`, `lib/mock-data.ts`, `components/dashboard/PathogenSelector.tsx`, `ParameterControls.tsx`, `SequenceCard.tsx` |
+| **⚡ Pas** | Visualisasi 2D Helical Wheel (`POST /api/validate-stability`), grafik kurva muatan `chargePhCurve`, panel Protease Shield, metrik `aliphaticIndex` di radar/profil, polesan 3Dmol viewer & modal ekspor | `components/charts/HelicalWheelChart.tsx` *(baru)*, `components/charts/ChargePhChart.tsx` *(baru)*, panel Protease Shield *(baru)*, `BiophysicalRadar.tsx`, `AminoAcidProfile.tsx`, `canvas3d/MoleculeViewer.tsx`, `export/SynthesisModal.tsx` |
+
+> Untuk layout bersama seperti `frontend/src/app/page.tsx` dan `Header.tsx`, kerjakan komponen masing-masing dulu secara terpisah lalu gabungkan via PR kecil agar terhindar dari *merge conflict*.
 
 ---
 
-## 🚀 Cara Menjalankan & Menguji Backend Saja
-
-Kalian berdua cukup buka terminal dan jalankan **Backend saja** (tanpa perlu menyalakan Frontend):
+## 🚀 Cara Menjalankan & Menguji Backend Saat Ini
 
 ```bash
-# 1. Tarik update terbaru dari branch main
+# Tarik update terbaru
 git pull origin main
 
-# 2. Jalankan server Backend (otomatis reload setiap ada perubahan file)
+# Build & jalankan seluruh 15 automated test backend
+npm run build:be
+npm run test:be
+
+# Jalankan server backend (:5000)
 npm run dev:be
 ```
 
-Server akan jalan di `http://localhost:5000`. Kalian bisa langsung ngetes semua endpoint pakai **Postman / Thunder Client / cURL**:
-
-* **Cek Status Server:**
-  `GET http://localhost:5000/health`
-* **Tes Generate Peptida Baru:**
-  ```bash
-  curl -X POST http://localhost:5000/api/generate -H "Content-Type: application/json" -d "{\"pathogenId\":\"mrsa\",\"sequenceLength\":18,\"poreMechanism\":\"toroidal\",\"safetyThreshold\":\"high-selectivity\"}"
-  ```
-* **Tes Mutation Optimizer (Wilayah Irfan):**
-  ```bash
-  curl -X POST http://localhost:5000/api/optimize -H "Content-Type: application/json" -d "{\"sequence\":\"KWKLFKKIEKVGQNVRDG\"}"
-  ```
-* **Tes Protease Stability & Helical Wheel (Wilayah Pas):**
-  ```bash
-  curl -X POST http://localhost:5000/api/validate-stability -H "Content-Type: application/json" -d "{\"sequence\":\"KWKLFKKIEKVGQNVRDG\"}"
-  ```
+Server akan jalan di `http://localhost:5000` (daftar request/response lengkap tersedia di [`docs/API_CONTRACT.md`](./API_CONTRACT.md)).
 
 ---
 
-## 🔄 Protokol Git Harian (Tetap 1 Branch `main`)
+## 🔄 Protokol Git (Feature Branch + PR ke `main`)
 
-```bash
-# Sebelum mulai ngoding:
-git pull origin main
-
-# Setelah selesai ngoding:
-git add .
-git commit -m "feat(be): deskripsi singkat update"
-git push origin main
-```
-
-Begitu seluruh endpoint Backend di atas sudah solid dan teruji, baru di tahap akhir kita sambungkan ke Frontend!
+1. Selalu mulai dari `main` terbaru: `git pull origin main`
+2. Buat branch baru sesuai topik: `git checkout -b feat/nama-fitur`
+3. Pastikan build & test lulus sebelum commit (`npm run build:be && npm run test:be` / cek typecheck FE)
+4. Push branch dan buka Pull Request ke `main`.

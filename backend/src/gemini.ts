@@ -12,6 +12,7 @@ import {
 } from './ai/prompt-utils';
 import { generateWithGroq, ProviderGenerationResult } from './ai/groq-client';
 import { evaluatePeptideFitness, evolvePeptideSequence } from './ai/mutation-optimizer';
+import { analyzeSynthesisFeasibility } from './ai/synthesis-feasibility';
 
 export type { RawAiPeptideOutput } from './ai/prompt-utils';
 
@@ -33,23 +34,55 @@ async function callGeminiProvider(
 
   const ai = new GoogleGenAI({ apiKey });
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-  const response = await ai.models.generateContent({
-    model,
-    contents: buildPeptidePrompt(pathogen, params),
-    config: {
-      systemInstruction: AMP_SYSTEM_INSTRUCTION,
-      responseMimeType: 'application/json',
-      temperature: 0.7,
-      abortSignal: AbortSignal.timeout(timeoutMs)
-    }
-  });
 
-  const text = response.text?.trim() || '';
-  return {
-    output: normalizeAiPeptideOutput(text, pathogen, params.sequenceLength),
-    provider: 'gemini',
-    model
-  };
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: buildPeptidePrompt(pathogen, params),
+        config: {
+          systemInstruction: AMP_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          temperature: attempt === 0 ? 0.7 : 0.85,
+          abortSignal: AbortSignal.timeout(timeoutMs)
+        }
+      });
+
+      const text = response.text?.trim() || '';
+      return {
+        output: normalizeAiPeptideOutput(text, pathogen, params.sequenceLength),
+        provider: 'gemini',
+        model
+      };
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Gemini generation failed');
+}
+
+async function collectDualProviderCandidates(
+  pathogen: PathogenProfile,
+  params: PeptideDesignParams
+): Promise<ProviderGenerationResult[]> {
+  const tasks: Promise<ProviderGenerationResult>[] = [];
+  if (process.env.GEMINI_API_KEY) {
+    tasks.push(callGeminiProvider(pathogen, params, 10000));
+  }
+  if (process.env.GROQ_API_KEY) {
+    tasks.push(generateWithGroq(pathogen, params));
+  }
+  if (tasks.length === 0) return [];
+
+  const settled = await Promise.allSettled(tasks);
+  return settled
+    .filter((r): r is PromiseFulfilledResult<ProviderGenerationResult> => r.status === 'fulfilled')
+    .map((r) => r.value);
 }
 
 async function selectCandidateByProvider(
@@ -77,14 +110,7 @@ async function selectCandidateByProvider(
   }
 
   if (preference === 'dual') {
-    const settled = await Promise.allSettled([
-      callGeminiProvider(pathogen, params),
-      generateWithGroq(pathogen, params)
-    ]);
-
-    const viable = settled
-      .filter((r): r is PromiseFulfilledResult<ProviderGenerationResult> => r.status === 'fulfilled')
-      .map((r) => r.value);
+    const viable = await collectDualProviderCandidates(pathogen, params);
 
     if (viable.length === 1) {
       return viable[0];
@@ -102,20 +128,20 @@ async function selectCandidateByProvider(
     return { output: generateHeuristicPeptide(pathogen, params), provider: 'heuristic', model: 'deterministic-motif' };
   }
 
-  // Default 'auto' cascade: Gemini (7.5s cap) -> Groq -> Deterministic Heuristic
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      return await callGeminiProvider(pathogen, params, 7500);
-    } catch (geminiErr) {
-      console.warn('[SynthiaBio Router] Gemini failed/timed out, failing over to Groq:', geminiErr);
-    }
-  }
-
+  // Default 'auto' cascade: Groq (low-latency ~1s, low-reasoning-token) -> Gemini -> Deterministic Heuristic
   if (process.env.GROQ_API_KEY) {
     try {
       return await generateWithGroq(pathogen, params);
     } catch (groqErr) {
-      console.warn('[SynthiaBio Router] Groq failover also failed, using heuristic:', groqErr);
+      console.warn('[SynthiaBio Router] Groq failed, failing over to Gemini:', groqErr);
+    }
+  }
+
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      return await callGeminiProvider(pathogen, params, 8000);
+    } catch (geminiErr) {
+      console.warn('[SynthiaBio Router] Gemini failover also failed, using heuristic:', geminiErr);
     }
   }
 
@@ -185,6 +211,97 @@ export async function synthesizePeptideWithAI(
 ): Promise<SynthesizedPeptideResult> {
   const selected = await selectCandidateByProvider(pathogen, params);
   return applyClosedLoopRefinement(selected, pathogen, params.autoOptimize !== false);
+}
+
+/**
+ * Generates and ranks multiple distinct candidate peptides across active AI engines
+ * plus directed-evolution optimization so callers can inspect trade-offs side by side.
+ */
+export async function synthesizeBatchWithAI(
+  pathogen: PathogenProfile,
+  params: PeptideDesignParams,
+  maxCandidates = 3
+): Promise<SynthesizedPeptideResult[]> {
+  const boundedMax = Math.max(2, Math.min(4, Math.round(maxCandidates)));
+  const preference = params.provider || 'dual';
+
+  let rawPool: ProviderGenerationResult[] = [];
+  if (preference === 'gemini') {
+    rawPool = [await selectCandidateByProvider(pathogen, { ...params, provider: 'gemini' })];
+  } else if (preference === 'groq') {
+    rawPool = [await selectCandidateByProvider(pathogen, { ...params, provider: 'groq' })];
+  } else {
+    rawPool = await collectDualProviderCandidates(pathogen, params);
+  }
+
+  // Always include deterministic baseline motif so screening stays robust offline and adds diversity
+  rawPool.push({
+    output: generateHeuristicPeptide(pathogen, params),
+    provider: 'heuristic',
+    model: 'deterministic-motif'
+  });
+
+  const deduped = new Map<string, SynthesizedPeptideResult>();
+  const register = (item: SynthesizedPeptideResult) => {
+    const seq = item.output.sequence;
+    if (!deduped.has(seq)) {
+      deduped.set(seq, item);
+    }
+  };
+
+  for (const rawItem of rawPool) {
+    register(rawItem);
+    if (params.autoOptimize !== false) {
+      const refined = applyClosedLoopRefinement(rawItem, pathogen, true);
+      if (refined.optimizationSummary?.applied) {
+        register({
+          ...refined,
+          output: {
+            ...refined.output,
+            candidateName: `${refined.output.candidateName}-Opt`
+          }
+        });
+      }
+    }
+  }
+
+  // Ensure at least 2 distinct candidates even when offline by running multi-round evolution on best seed
+  if (deduped.size < boundedMax && params.autoOptimize !== false) {
+    const topSeed = Array.from(deduped.values())[0];
+    if (topSeed) {
+      const traj = evolvePeptideSequence(topSeed.output.sequence, pathogen, 3);
+      if (traj.appliedMutations.length > 0 && !deduped.has(traj.finalSequence)) {
+        const note = `Directed evolution applied ${traj.appliedMutations.join(', ')}: selectivity ${traj.initialMetrics.therapeuticSelectivityIndex} -> ${traj.finalMetrics.therapeuticSelectivityIndex}.`;
+        register({
+          ...topSeed,
+          output: {
+            ...topSeed.output,
+            candidateName: `${topSeed.output.candidateName}-Evo`,
+            sequence: traj.finalSequence,
+            molecularRationale: `${topSeed.output.molecularRationale} [${note}]`
+          },
+          optimizationSummary: {
+            applied: true,
+            originalSequence: traj.originalSequence,
+            originalSelectivity: traj.initialMetrics.therapeuticSelectivityIndex,
+            originalHemolysisRisk: traj.initialMetrics.predictedHemolysisRisk,
+            appliedMutations: traj.appliedMutations,
+            notes: note
+          }
+        });
+      }
+    }
+  }
+
+  const scoreItem = (item: SynthesizedPeptideResult): number => {
+    const fit = evaluatePeptideFitness(item.output.sequence, pathogen).compositeScore;
+    const spps = analyzeSynthesisFeasibility(item.output.sequence).feasibilityScore;
+    return fit + spps * 0.15;
+  };
+
+  return Array.from(deduped.values())
+    .sort((a, b) => scoreItem(b) - scoreItem(a))
+    .slice(0, boundedMax);
 }
 
 /**

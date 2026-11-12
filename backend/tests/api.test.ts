@@ -13,7 +13,9 @@ import {
   compareAgainstBenchmarks,
   getClinicalBenchmarks
 } from '../src/benchmarks/clinical-peptides';
-import { synthesizePeptideWithAI } from '../src/gemini';
+import { synthesizeBatchWithAI, synthesizePeptideWithAI } from '../src/gemini';
+import { analyzeSynthesisFeasibility } from '../src/ai/synthesis-feasibility';
+import { isDegenerateSequence, normalizeAiPeptideOutput } from '../src/ai/prompt-utils';
 
 test('WHO_PATHOGENS catalog contains unique profiles with valid ranges', () => {
   assert.ok(WHO_PATHOGENS.length >= 4);
@@ -120,4 +122,64 @@ test('AI orchestrator gracefully falls back to deterministic heuristic when API 
     if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini;
     if (prevGroq !== undefined) process.env.GROQ_API_KEY = prevGroq;
   }
+});
+
+test('Synthesis feasibility analyzer detects oxidation, aspartimide, and hydrophobic stretches', () => {
+  const risky = analyzeSynthesisFeasibility('QCMLLLLDGSWWVVKKAA');
+  const codes = new Set(risky.liabilities.map((f) => f.code));
+  assert.ok(codes.has('N_TERM_PYROGLU'));
+  assert.ok(codes.has('OXIDATION_CYS'));
+  assert.ok(codes.has('OXIDATION_MET'));
+  assert.ok(codes.has('ASPARTIMIDE_RISK'));
+  assert.ok(codes.has('HYDROPHOBIC_STRETCH'));
+  assert.ok(risky.feasibilityScore < 70);
+
+  const clean = analyzeSynthesisFeasibility('KWKLFKKILKSLKAVAKK');
+  assert.equal(clean.sppsDifficulty, 'Easy');
+  assert.ok(clean.feasibilityScore >= 78);
+});
+
+test('Batch synthesizer returns ranked distinct candidates even offline', async () => {
+  const prevGemini = process.env.GEMINI_API_KEY;
+  const prevGroq = process.env.GROQ_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GROQ_API_KEY;
+
+  try {
+    const batch = await synthesizeBatchWithAI(
+      DEFAULT_PATHOGEN,
+      {
+        pathogenId: DEFAULT_PATHOGEN.id,
+        sequenceLength: 18,
+        poreMechanism: 'toroidal',
+        safetyThreshold: 'high-selectivity',
+        provider: 'dual',
+        autoOptimize: true
+      },
+      3
+    );
+
+    assert.ok(batch.length >= 2);
+    const seqs = new Set(batch.map((c) => c.output.sequence));
+    assert.equal(seqs.size, batch.length);
+  } finally {
+    if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini;
+    if (prevGroq !== undefined) process.env.GROQ_API_KEY = prevGroq;
+  }
+});
+
+test('Prompt output normalizer rejects degenerate or repetitive sequences', () => {
+  assert.equal(isDegenerateSequence('KWKWKWKWKWKWKWKWKW'), true);
+  assert.equal(isDegenerateSequence('GAVGAVGAVGAVGAVGAV'), true);
+  assert.equal(isDegenerateSequence('GIGKFLKKAKKFGKAFVK'), false);
+
+  assert.throws(
+    () =>
+      normalizeAiPeptideOutput(
+        JSON.stringify({ name: 'RepAMP', sequence: 'KWKWKWKWKWKWKWKWKW' }),
+        DEFAULT_PATHOGEN,
+        18
+      ),
+    /Rejected degenerate repetitive sequence/
+  );
 });

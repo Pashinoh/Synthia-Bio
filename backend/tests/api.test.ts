@@ -36,6 +36,20 @@ test('Biophysical metrics & PDB generator produce valid outputs for standard AMP
   assert.equal(calculateBiophysicalMetrics('AAAAAAAAAA').aliphaticIndex, 100);
   assert.ok(metrics.aliphaticIndex >= 0 && Number.isFinite(metrics.aliphaticIndex));
 
+  // Melittin (positive-control toxin) MUST read High Risk; charged tail drags down
+  // overall mean but its hydrophobic head lyses erythrocytes.
+  const melittinMetrics = calculateBiophysicalMetrics('GIGAVLKVLTTGLPALISWIKRKRQQ');
+  assert.equal(melittinMetrics.predictedHemolysisRisk, 'High');
+  assert.ok(melittinMetrics.therapeuticSelectivityIndex < 90);
+
+  // Controls must not regress: Pexiganan Moderate/65, Magainin-2 Low/85
+  const pexiganan = calculateBiophysicalMetrics('GIGKFLKKAKKFGKAFVKILKK');
+  assert.equal(pexiganan.predictedHemolysisRisk, 'Moderate');
+  assert.equal(pexiganan.therapeuticSelectivityIndex, 65);
+  const magainin = calculateBiophysicalMetrics('GIGKFLHSAKKFGKAFVGEIMNS');
+  assert.equal(magainin.predictedHemolysisRisk, 'Low');
+  assert.equal(magainin.therapeuticSelectivityIndex, 85);
+
   const pdb = generateAlphaHelixPDB(seq, 'TestAMP');
   assert.ok(pdb.includes('ATOM'));
   assert.ok(pdb.includes('END'));
@@ -70,6 +84,8 @@ test('Pas modules (protease shield & helical wheel) validate sequences properly'
   const seq = 'KWKLFKKIEKVGQNVRDG';
   const protease = analyzeProteaseStability(seq);
   assert.ok(protease.stabilityScore >= 25 && protease.stabilityScore <= 95);
+  // stabilityScore must be a whole number (no float artifacts like 43.40000000000001)
+  assert.equal(Number.isInteger(protease.stabilityScore), true);
   assert.ok(protease.cleavageSites.length > 0);
 
   const wheel = computeHelicalWheel(seq);
@@ -84,6 +100,11 @@ test('Pas modules (protease shield & helical wheel) validate sequences properly'
   assert.ok(curve.points[20].charge < 0); // acidic residues dominate in base
   const nearP = curve.points.find((p) => Math.abs(p.ph - curve.isoelectricPoint) < 0.26);
   assert.ok(nearP && Math.abs(nearP.charge) < 1.0);
+
+  // step guard: step <= 0 must throw
+  assert.throws(() => computeChargePhCurve(seq, { step: 0 }), /pH step must be positive/);
+  assert.throws(() => computeChargePhCurve(seq, { step: -0.5 }), /pH step must be positive/);
+  assert.throws(() => computeChargePhCurve(seq, { step: NaN }), /pH step must be positive/);
 });
 
 test('Protease shield covers elastase with proline protection and monotone half-life', () => {

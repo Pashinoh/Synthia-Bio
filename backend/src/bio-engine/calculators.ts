@@ -8,6 +8,12 @@ import { BiophysicalMetrics, AminoAcidCount, HemolysisRisk } from '../types/pept
 const HEMOLYSIS_HIGH_HYDRO = 0.55;        // mean hydrophobicity alone => High risk
 const HEMOLYSIS_HIGH_PRECONDITION = 0.45; // combined with moment below => High risk
 const HEMOLYSIS_HIGH_MOMENT = 0.65;
+// Local hydrophobic-core threshold (sliding window). Catches toxins like Melittin
+// whose overall mean is lowered by a charged tail (KRKRQQ) but whose head is a
+// long hydrophobic stretch that lyses erythrocytes.
+const LOCAL_HYDROPHOBIC_WINDOW_MIN = 8;
+const LOCAL_HYDROPHOBIC_WINDOW_MAX = 12;
+const LOCAL_HYDROPHOBIC_THRESHOLD = 0.70;
 const HEMOLYSIS_MODERATE_HYDRO = 0.38;
 const HEMOLYSIS_MODERATE_MOMENT = 0.55;
 const TSI_BASE = 75;
@@ -94,6 +100,22 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
   const bomanIndex = parseFloat((bomanSum / n).toFixed(2));
   const hydrophobicRatio = parseFloat((hydrophobicResidues / n).toFixed(2));
 
+  // Local hydrophobic-core peak (sliding window 8-12 residues) to catch toxins
+  // like Melittin whose charged tail drags down the overall mean while a
+  // hydrophobic head lyses erythrocytes.
+  let maxLocalHydrophobicity = 0;
+  for (let w = LOCAL_HYDROPHOBIC_WINDOW_MIN; w <= LOCAL_HYDROPHOBIC_WINDOW_MAX && w <= n; w++) {
+    let windowSum = 0;
+    for (let j = 0; j < w; j++) {
+      windowSum += AMINO_ACID_TABLE[cleanSeq[j]].eisenbergHydrophobicity;
+    }
+    maxLocalHydrophobicity = Math.max(maxLocalHydrophobicity, windowSum / w);
+    for (let j = w; j < n; j++) {
+      windowSum += AMINO_ACID_TABLE[cleanSeq[j]].eisenbergHydrophobicity - AMINO_ACID_TABLE[cleanSeq[j - w]].eisenbergHydrophobicity;
+      maxLocalHydrophobicity = Math.max(maxLocalHydrophobicity, windowSum / w);
+    }
+  }
+
   // 2. Isoelectric Point (pI) estimation
   const pI = estimateIsoelectricPoint(cleanSeq);
 
@@ -101,7 +123,11 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
   // High hydrophobicity (> 0.5) + very high hydrophobic moment (> 0.7) usually causes human hemolysis.
   // Optimal AMPs have high charge (+4 to +8) and moderate hydrophobicity (0.2 to 0.45).
   let hemolysisRisk: HemolysisRisk = 'Low';
-  if (meanHydrophobicity > HEMOLYSIS_HIGH_HYDRO || (meanHydrophobicity > HEMOLYSIS_HIGH_PRECONDITION && hydrophobicMoment > HEMOLYSIS_HIGH_MOMENT)) {
+  if (
+    maxLocalHydrophobicity > LOCAL_HYDROPHOBIC_THRESHOLD ||
+    meanHydrophobicity > HEMOLYSIS_HIGH_HYDRO ||
+    (meanHydrophobicity > HEMOLYSIS_HIGH_PRECONDITION && hydrophobicMoment > HEMOLYSIS_HIGH_MOMENT)
+  ) {
     hemolysisRisk = 'High';
   } else if (meanHydrophobicity > HEMOLYSIS_MODERATE_HYDRO || hydrophobicMoment > HEMOLYSIS_MODERATE_MOMENT) {
     hemolysisRisk = 'Moderate';
@@ -192,6 +218,9 @@ export function computeChargePhCurve(
   const minPh = options?.minPh ?? 2.0;
   const maxPh = options?.maxPh ?? 12.0;
   const step = options?.step ?? 0.5;
+  if (!Number.isFinite(step) || step <= 0) {
+    throw new Error('pH step must be positive');
+  }
 
   const points: ChargePhPoint[] = [];
   for (let i = 0; i * step + minPh <= maxPh + 1e-9; i++) {

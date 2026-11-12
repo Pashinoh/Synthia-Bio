@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { GeneratedPeptide } from '@/types/peptide';
-import { X, Printer, Beaker, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { X, Printer, Beaker, CheckCircle2, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -106,6 +106,45 @@ export const SynthesisModal: React.FC<ModalProps> = ({ isOpen, onClose, peptide 
               </div>
             </div>
           </div>
+
+          {/* Synthesis Feasibility */}
+          {peptide.synthesisFeasibility && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Synthesis Feasibility</span>
+              </h3>
+              <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80">
+                <div className="flex justify-between text-[10px] font-mono mb-1">
+                  <span className="text-slate-400">Feasibility Score</span>
+                  <span className="text-emerald-400">{peptide.synthesisFeasibility.feasibilityScore}/100</span>
+                </div>
+                <div className="flex justify-between text-[10px] font-mono mb-1">
+                  <span className="text-slate-400">SPPS Difficulty</span>
+                  <span className="text-slate-200">{peptide.synthesisFeasibility.sppsDifficulty}</span>
+                </div>
+                <div className="flex justify-between text-[10px] font-mono mb-1">
+                  <span className="text-slate-400">Aqueous Solubility</span>
+                  <span className="text-slate-200">{peptide.synthesisFeasibility.aqueousSolubility}</span>
+                </div>
+                {peptide.synthesisFeasibility.liabilities.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-[10px] text-slate-400 font-mono mb-1">Liabilities</div>
+                    <ul className="space-y-1">
+                      {peptide.synthesisFeasibility.liabilities.map((liability, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-[9px] text-amber-400 shrink-0">⚠</span>
+                          <p className="text-[10px] text-slate-300 leading-relaxed">
+                            {typeof liability === 'string' ? liability : liability.description}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Caution Alert */}
           <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-start gap-2">

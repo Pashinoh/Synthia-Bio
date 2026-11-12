@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import { PathogenProfile, PeptideDesignParams, GeneratedPeptide } from '@/types/peptide';
+import {
+  PathogenProfile,
+  PeptideDesignParams,
+  GeneratedPeptide,
+  ProteaseStabilityReport,
+  HelicalWheelProjection,
+  ChargePhCurve
+} from '@/types/peptide';
 import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from '@/lib/pathogens';
 import { MOCK_GENERATED_PEPTIDE } from '@/lib/mock-data';
 
@@ -10,6 +17,9 @@ interface PeptideState {
   selectedPathogen: PathogenProfile;
   designParams: PeptideDesignParams;
   currentPeptide: GeneratedPeptide | null;
+  proteaseReport: ProteaseStabilityReport | null;
+  helicalWheel: HelicalWheelProjection | null;
+  chargePhCurve: ChargePhCurve | null;
   isLoading: boolean;
   error: string | null;
   active3dMode: Display3DMode;
@@ -21,6 +31,7 @@ interface PeptideState {
   setActive3dMode: (mode: Display3DMode) => void;
   setColorScheme: (scheme: ColorScheme) => void;
   generatePeptide: () => Promise<void>;
+  validateStability: (sequence: string) => Promise<void>;
   resetToMock: () => void;
 }
 
@@ -33,6 +44,9 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     safetyThreshold: 'high-selectivity'
   },
   currentPeptide: MOCK_GENERATED_PEPTIDE,
+  proteaseReport: null,
+  helicalWheel: null,
+  chargePhCurve: null,
   isLoading: false,
   error: null,
   active3dMode: 'cartoon',
@@ -64,9 +78,56 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   resetToMock: () => {
     set({
       currentPeptide: MOCK_GENERATED_PEPTIDE,
+      proteaseReport: null,
+      helicalWheel: null,
+      chargePhCurve: null,
       error: null,
       isLoading: false
     });
+  },
+
+  validateStability: async (sequence: string) => {
+    set({ isLoading: true, error: null });
+
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000';
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/validate-stability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequence })
+      });
+
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('retry-after') || response.headers.get('Retry-After');
+        const seconds = retryAfter ? parseInt(retryAfter, 10) : 45;
+        throw new Error(`Rate limit exceeded. Try again in ${seconds}s.`);
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to validate stability');
+      }
+
+      set({
+        proteaseReport: data.proteaseReport,
+        helicalWheel: data.helicalWheel,
+        chargePhCurve: data.chargePhCurve,
+        isLoading: false,
+        error: null
+      });
+    } catch (err: unknown) {
+      console.warn('Stability validation error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown validation error';
+      set({
+        proteaseReport: null,
+        helicalWheel: null,
+        chargePhCurve: null,
+        isLoading: false,
+        error: errorMessage
+      });
+    }
   },
 
   generatePeptide: async () => {

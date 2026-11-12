@@ -1,15 +1,25 @@
 'use client';
 
 import React from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  Line
+} from 'recharts';
 import { AminoAcidCount } from '@/types/peptide';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Dna } from 'lucide-react';
 
 interface ProfileProps {
   profile: AminoAcidCount[];
+  benchmarkProfile?: AminoAcidCount[];
 }
 
-export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile }) => {
+export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile, benchmarkProfile }) => {
   const getCategoryColor = (category: string) => {
     switch (category) {
       case 'positive':
@@ -24,6 +34,11 @@ export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile }) => {
         return '#94A3B8'; // Slate for neutral
     }
   };
+
+  const benchmarkMap = new Map<string, number>();
+  benchmarkProfile?.forEach((row) => {
+    benchmarkMap.set(row.code, row.count);
+  });
 
   return (
     <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl flex flex-col justify-between">
@@ -67,6 +82,16 @@ export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile }) => {
                 <Cell key={`cell-${index}`} fill={getCategoryColor(entry.category)} />
               ))}
             </Bar>
+            {benchmarkProfile && (
+              <Line
+                type="monotone"
+                data={profile.map((p) => ({ code: p.code, count: benchmarkMap.get(p.code) ?? 0 }))}
+                dataKey="count"
+                stroke="#EF4444"
+                strokeWidth={2}
+                dot={false}
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>

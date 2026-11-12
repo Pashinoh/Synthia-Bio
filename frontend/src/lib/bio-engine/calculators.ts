@@ -19,6 +19,10 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
   let totalHydrophobicity = 0;
   let hydrophobicResidues = 0;
   let bomanSum = 0;
+  let alaCount = 0;
+  let valCount = 0;
+  let ileCount = 0;
+  let leuCount = 0;
 
   // For Hydrophobic Moment (<mu_H>):
   // Vector sum with periodicity delta = 100 degrees (1.74533 rad) for alpha-helix
@@ -48,6 +52,12 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
       sumCos += data.eisenbergHydrophobicity * Math.cos(angle);
       sumSin += data.eisenbergHydrophobicity * Math.sin(angle);
 
+      // Aliphatic Index residue counts
+      if (aa === 'A') alaCount++;
+      else if (aa === 'V') valCount++;
+      else if (aa === 'I') ileCount++;
+      else if (aa === 'L') leuCount++;
+
       // Boman index transfer energy
       bomanSum += BOMAN_TRANSFER_ENERGIES[aa] ?? 0.5;
     }
@@ -58,6 +68,9 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
   const netCharge = parseFloat(charge.toFixed(1));
   const bomanIndex = parseFloat((bomanSum / n).toFixed(2));
   const hydrophobicRatio = parseFloat((hydrophobicResidues / n).toFixed(2));
+  const aliphaticIndex = parseFloat(
+    (((alaCount + 2.9 * valCount + 3.9 * (ileCount + leuCount)) / n) * 100).toFixed(1)
+  );
 
   // 2. Isoelectric Point (pI) estimation
   const pI = estimateIsoelectricPoint(cleanSeq);
@@ -87,6 +100,7 @@ export function calculateBiophysicalMetrics(sequence: string): BiophysicalMetric
     hydrophobicMoment,
     isoelectricPoint: pI,
     bomanIndex,
+    aliphaticIndex,
     predictedHemolysisRisk: hemolysisRisk,
     therapeuticSelectivityIndex: selectivity,
     hydrophobicResidueRatio: hydrophobicRatio,

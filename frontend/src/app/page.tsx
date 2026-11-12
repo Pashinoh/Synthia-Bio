@@ -5,15 +5,26 @@ import { Header } from '@/components/dashboard/Header';
 import { PathogenSelector } from '@/components/dashboard/PathogenSelector';
 import { ParameterControls } from '@/components/dashboard/ParameterControls';
 import { SequenceCard } from '@/components/dashboard/SequenceCard';
+import { ProteaseShieldPanel } from '@/components/dashboard/ProteaseShieldPanel';
 import { MoleculeViewer } from '@/components/canvas3d/MoleculeViewer';
 import { BiophysicalRadar } from '@/components/charts/BiophysicalRadar';
 import { AminoAcidProfile } from '@/components/charts/AminoAcidProfile';
+import { HelicalWheelChart } from '@/components/charts/HelicalWheelChart';
+import { ChargePhChart } from '@/components/charts/ChargePhChart';
 import { SynthesisModal } from '@/components/export/SynthesisModal';
 import { usePeptideStore } from '@/store/usePeptideStore';
-import { Sparkles, Activity, Dna, AlertCircle } from 'lucide-react';
+import { Sparkles, Activity, Dna, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export default function Home() {
-  const { currentPeptide, error } = usePeptideStore();
+  const {
+    currentPeptide,
+    error,
+    proteaseReport,
+    helicalWheel,
+    chargePhCurve,
+    isLoading,
+    validateStability
+  } = usePeptideStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
@@ -68,6 +79,24 @@ export default function Home() {
             <PathogenSelector />
             <ParameterControls />
             <SequenceCard onOpenProtocol={() => setIsModalOpen(true)} />
+            {currentPeptide && (
+              <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-md">
+                <button
+                  onClick={() => validateStability(currentPeptide.sequence)}
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-900 text-xs font-mono text-slate-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <span className="animate-pulse">Validating Stability…</span>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Validate Stability (Protease Shield)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* RIGHT COLUMN: 3D Molecular Canvas & Biophysical Analytics (7 Cols) */}
@@ -88,9 +117,20 @@ export default function Home() {
             {/* Biophysical Charts Grid */}
             {currentPeptide && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <BiophysicalRadar metrics={currentPeptide.metrics} />
-                <AminoAcidProfile profile={currentPeptide.aminoAcidProfile} />
+                <div className="space-y-4">
+                  <BiophysicalRadar metrics={currentPeptide.metrics} />
+                  <HelicalWheelChart wheel={helicalWheel} />
+                </div>
+                <div className="space-y-4">
+                  <AminoAcidProfile profile={currentPeptide.aminoAcidProfile} />
+                  <ChargePhChart curve={chargePhCurve} />
+                </div>
               </div>
+            )}
+
+            {/* Protease Shield Panel */}
+            {currentPeptide && proteaseReport && (
+              <ProteaseShieldPanel report={proteaseReport} />
             )}
           </div>
         </div>

@@ -45,6 +45,12 @@ export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
       benchmark: 80
     },
     {
+      subject: 'Aliphatic Index',
+      value: Math.min(100, Math.max(0, (metrics.aliphaticIndex ?? 0) / 150) * 100),
+      raw: `${metrics.aliphaticIndex ?? 0}`,
+      benchmark: 70
+    },
+    {
       subject: 'Cell Safety',
       value: metrics.predictedHemolysisRisk === 'Low' ? 90 : metrics.predictedHemolysisRisk === 'Moderate' ? 60 : 30,
       raw: `${metrics.predictedHemolysisRisk} Hemolysis`,

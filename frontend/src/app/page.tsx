@@ -13,7 +13,7 @@ import { HelicalWheelChart } from '@/components/charts/HelicalWheelChart';
 import { ChargePhChart } from '@/components/charts/ChargePhChart';
 import { SynthesisModal } from '@/components/export/SynthesisModal';
 import { usePeptideStore } from '@/store/usePeptideStore';
-import { Sparkles, Activity, Dna, AlertCircle } from 'lucide-react';
+import { Sparkles, Activity, Dna, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export default function Home() {
   const {
@@ -21,7 +21,9 @@ export default function Home() {
     error,
     proteaseReport,
     helicalWheel,
-    chargePhCurve
+    chargePhCurve,
+    isLoading,
+    validateStability
   } = usePeptideStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -77,6 +79,24 @@ export default function Home() {
             <PathogenSelector />
             <ParameterControls />
             <SequenceCard onOpenProtocol={() => setIsModalOpen(true)} />
+            {currentPeptide && (
+              <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-md">
+                <button
+                  onClick={() => validateStability(currentPeptide.sequence)}
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-900 text-xs font-mono text-slate-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <span className="animate-pulse">Validating Stability…</span>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Validate Stability (Protease Shield)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* RIGHT COLUMN: 3D Molecular Canvas & Biophysical Analytics (7 Cols) */}

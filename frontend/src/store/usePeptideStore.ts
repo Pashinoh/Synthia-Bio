@@ -89,12 +89,20 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   validateStability: async (sequence: string) => {
     set({ isLoading: true, error: null });
 
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000';
+
     try {
-      const response = await fetch('/api/validate-stability', {
+      const response = await fetch(`${BACKEND_URL}/api/validate-stability`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sequence })
       });
+
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('retry-after') || response.headers.get('Retry-After');
+        const seconds = retryAfter ? parseInt(retryAfter, 10) : 45;
+        throw new Error(`Rate limit exceeded. Try again in ${seconds}s.`);
+      }
 
       const data = await response.json();
 

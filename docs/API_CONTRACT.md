@@ -84,7 +84,8 @@ Synthesizes a de novo AMP via multi-provider AI (`auto`, `gemini`, `groq`, or `d
   "poreMechanism": "toroidal",
   "safetyThreshold": "high-selectivity",
   "provider": "auto",
-  "autoOptimize": true
+  "autoOptimize": true,
+  "lockedMotif": "optional conserved amino acid motif (2-12 aa) to preserve during synthesis & optimization"
 }
 ```
 - `sequenceLength`: clamped to `[12, 28]` (default `18`)
@@ -92,6 +93,7 @@ Synthesizes a de novo AMP via multi-provider AI (`auto`, `gemini`, `groq`, or `d
 - `safetyThreshold`: `'high-selectivity' | 'balanced'` (default `'high-selectivity'`)
 - `provider`: `'auto' | 'gemini' | 'groq' | 'dual'` (default `'auto'`)
 - `autoOptimize`: boolean (default `true`)
+- `lockedMotif`: optional string (e.g. `"KWKLFKK"`), preserved during prompt conditioning, closed-loop refinement, and heuristic fallback
 
 **Response `200 OK`:**
 ```json
@@ -126,6 +128,14 @@ Synthesizes a de novo AMP via multi-provider AI (`auto`, `gemini`, `groq`, or `d
       "liabilities": [],
       "recommendedMitigations": ["..."]
     },
+    "inSilicoGates": {
+      "overallStatus": "PASS",
+      "passedCount": 5,
+      "totalGates": 5,
+      "passRate": 1,
+      "rewardScore": 91,
+      "gates": []
+    },
     "metrics": {
       "netCharge": 7,
       "meanHydrophobicity": 0.21,
@@ -140,6 +150,7 @@ Synthesizes a de novo AMP via multi-provider AI (`auto`, `gemini`, `groq`, or `d
     },
     "aminoAcidProfile": [],
     "pdbContent": "HEADER ...",
+    "cifContent": "data_SYNTHIA_...",
     "fastaContent": ">...",
     "synthesisProtocol": {
       "nTerminalModification": "...",
@@ -193,10 +204,13 @@ Runs single-point mutation scanning + multi-round directed evolution (`1..5` rou
 {
   "sequence": "GIGAVLKVLTTGLPALISWIKRKRQQ",
   "pathogenId": "mrsa",
-  "rounds": 3
+  "rounds": 3,
+  "lockedPositions": [1, 2],
+  "lockedMotif": "GIGAV"
 }
 ```
 - `sequence` validation: requires `6–60` valid standard 1-letter amino acid codes (`ACDEFGHIKLMNPQRSTVWY`); returns `400 Bad Request` otherwise.
+- `lockedPositions` / `lockedMotif`: optional motif scaffolding constraints keeping conserved active positions immutable during directed evolution.
 
 **Response `200 OK`:**
 ```json

@@ -20,10 +20,12 @@ import { compareAgainstBenchmarks, getClinicalBenchmarks } from './benchmarks/cl
 import {
   evaluatePeptideFitness,
   evolvePeptideSequence,
+  resolveLockedPositions,
   sanitizePeptideSequence,
   scanBeneficialMutations
 } from './ai/mutation-optimizer';
 import { assembleGeneratedPeptide } from './ai/peptide-assembler';
+import { sanitizeLockedMotif } from './ai/prompt-utils';
 import { analyzeProteaseStability } from './validators/protease-shield';
 import { buildCorsOptions, createRateLimiter, securityHeaders } from './middleware/security';
 
@@ -120,7 +122,8 @@ function parseGenerationInput(
       safetyThreshold,
       customPathogenName: body.customPathogenName,
       provider,
-      autoOptimize: body.autoOptimize !== false
+      autoOptimize: body.autoOptimize !== false,
+      lockedMotif: sanitizeLockedMotif(body.lockedMotif, length)
     }
   };
 }
@@ -224,15 +227,21 @@ export function createApp(options: AppOptions = {}): express.Express {
           : undefined;
       const rawRounds = Number(req.body?.rounds);
       const rounds = Number.isFinite(rawRounds) ? Math.max(1, Math.min(5, Math.round(rawRounds))) : 3;
+      const lockedPositions = resolveLockedPositions(
+        seqCheck.sequence,
+        Array.isArray(req.body?.lockedPositions) ? (req.body.lockedPositions as number[]) : undefined,
+        typeof req.body?.lockedMotif === 'string' ? req.body.lockedMotif : undefined
+      );
 
       const baseMetrics = calculateBiophysicalMetrics(seqCheck.sequence);
-      const recommendedMutations = scanBeneficialMutations(seqCheck.sequence, pathogen);
-      const evolutionTrajectory = evolvePeptideSequence(seqCheck.sequence, pathogen, rounds);
+      const recommendedMutations = scanBeneficialMutations(seqCheck.sequence, pathogen, lockedPositions);
+      const evolutionTrajectory = evolvePeptideSequence(seqCheck.sequence, pathogen, rounds, lockedPositions);
 
       res.json({
         success: true,
         originalSequence: seqCheck.sequence,
         targetPathogenId: pathogen?.id || null,
+        lockedPositions,
         baseMetrics,
         recommendedMutations,
         evolutionTrajectory
@@ -332,6 +341,7 @@ export function createApp(options: AppOptions = {}): express.Express {
         const pex = benchmark.comparisons.find((c) => c.referenceId === 'pexiganan-msi78');
         const mel = benchmark.comparisons.find((c) => c.referenceId === 'melittin');
 
+        const gates = peptide.inSilicoGates;
         return {
           rank: idx + 1,
           compositeFitness,
@@ -339,7 +349,7 @@ export function createApp(options: AppOptions = {}): express.Express {
           estimatedHalfLifeMinutes: fitness.protease.estimatedHalfLifeMinutes,
           selectivityVsPexiganan: pex ? pex.selectivityDelta : null,
           selectivityVsMelittin: mel ? mel.selectivityDelta : null,
-          tradeoffSummary: `Selectivity ${peptide.metrics.therapeuticSelectivityIndex}/100 | Hemolysis ${peptide.metrics.predictedHemolysisRisk} | Protease ${fitness.protease.stabilityScore}/100 (~${fitness.protease.estimatedHalfLifeMinutes} min) | SPPS ${peptide.synthesisFeasibility?.sppsDifficulty} (${sppsScore}/100)`,
+          tradeoffSummary: `Selectivity ${peptide.metrics.therapeuticSelectivityIndex}/100 | Hemolysis ${peptide.metrics.predictedHemolysisRisk} | Protease ${fitness.protease.stabilityScore}/100 (~${fitness.protease.estimatedHalfLifeMinutes} min) | SPPS ${peptide.synthesisFeasibility?.sppsDifficulty} (${sppsScore}/100)${gates ? ` | Gates ${gates.passedCount}/${gates.totalGates} (${gates.overallStatus})` : ''}`,
           peptide
         };
       });

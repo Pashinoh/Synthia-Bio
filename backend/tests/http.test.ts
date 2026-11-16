@@ -77,15 +77,24 @@ test('POST /api/optimize, /api/validate-stability, and /api/benchmarks/compare w
 
   const optOk = await jsonRequest<{
     success: boolean;
-    evolutionTrajectory: { appliedMutations: string[]; finalFitness: number; initialFitness: number };
+    lockedPositions?: number[];
+    evolutionTrajectory: {
+      originalSequence: string;
+      finalSequence: string;
+      appliedMutations: string[];
+      finalFitness: number;
+      initialFitness: number;
+    };
   }>('/api/optimize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sequence: seq, pathogenId: 'mrsa', rounds: 2 })
+    body: JSON.stringify({ sequence: seq, pathogenId: 'mrsa', rounds: 2, lockedMotif: 'GIGAV' })
   });
   assert.equal(optOk.status, 200);
   assert.equal(optOk.body.success, true);
   assert.ok(optOk.body.evolutionTrajectory.appliedMutations.length >= 1);
+  assert.deepEqual(optOk.body.lockedPositions, [1, 2, 3, 4, 5]);
+  assert.equal(optOk.body.evolutionTrajectory.finalSequence.slice(0, 5), 'GIGAV');
 
   const stabOk = await jsonRequest<{
     success: boolean;
@@ -171,6 +180,14 @@ test('POST /api/generate completes offline heuristic pipeline and enforces AI ra
         sequence: string;
         aiProviderUsed: string;
         pdbContent: string;
+        cifContent?: string;
+        inSilicoGates?: {
+          overallStatus: string;
+          passedCount: number;
+          totalGates: number;
+          rewardScore: number;
+          gates: unknown[];
+        };
         synthesisFeasibility?: { feasibilityScore: number; sppsDifficulty: string };
       };
     };
@@ -180,6 +197,8 @@ test('POST /api/generate completes offline heuristic pipeline and enforces AI ra
     assert.equal(body1.peptide.aiProviderUsed, 'heuristic');
     assert.equal(body1.peptide.sequence.length, 18);
     assert.ok(body1.peptide.pdbContent.includes('ATOM'));
+    assert.ok(body1.peptide.cifContent?.includes('_atom_site.Cartn_x'));
+    assert.ok(body1.peptide.inSilicoGates && body1.peptide.inSilicoGates.gates.length === 5);
     assert.ok(body1.peptide.synthesisFeasibility && body1.peptide.synthesisFeasibility.feasibilityScore > 0);
 
     const rBatch = await fetch(`http://127.0.0.1:${port}/api/generate-batch`, {

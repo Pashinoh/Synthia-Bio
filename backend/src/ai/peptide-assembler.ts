@@ -1,5 +1,6 @@
 import { calculateBiophysicalMetrics, getAminoAcidProfile } from '../bio-engine/calculators';
 import { generateAlphaHelixPDB } from '../bio-engine/pdb-generator';
+import { analyzeProteaseStability } from '../validators/protease-shield';
 import {
   ClosedLoopOptimizationSummary,
   GeneratedPeptide,
@@ -7,6 +8,8 @@ import {
   PathogenProfile,
   PoreMechanism
 } from '../types/peptide';
+import { convertPdbToCif } from './cif-converter';
+import { evaluateInSilicoGates } from './in-silico-gates';
 import { RawAiPeptideOutput } from './prompt-utils';
 import { analyzeSynthesisFeasibility } from './synthesis-feasibility';
 
@@ -29,7 +32,15 @@ export function assembleGeneratedPeptide(input: AssemblePeptideInput): Generated
   const metrics = calculateBiophysicalMetrics(rawAiOutput.sequence);
   const aminoAcidProfile = getAminoAcidProfile(rawAiOutput.sequence);
   const pdbContent = generateAlphaHelixPDB(rawAiOutput.sequence, rawAiOutput.candidateName);
+  const cifContent = convertPdbToCif(pdbContent, rawAiOutput.candidateName);
   const synthesisFeasibility = analyzeSynthesisFeasibility(rawAiOutput.sequence);
+  const protease = analyzeProteaseStability(rawAiOutput.sequence);
+  const inSilicoGates = evaluateInSilicoGates({
+    metrics,
+    protease,
+    synthesisFeasibility,
+    pathogen
+  });
 
   const suffix = input.idSuffix ? `-${input.idSuffix}` : '';
   const hasDoubleCoupling = synthesisFeasibility.liabilities.some(
@@ -49,9 +60,11 @@ export function assembleGeneratedPeptide(input: AssemblePeptideInput): Generated
     aiModelUsed: model,
     ...(optimizationSummary ? { optimizationSummary } : {}),
     synthesisFeasibility,
+    inSilicoGates,
     metrics,
     aminoAcidProfile,
     pdbContent,
+    cifContent,
     fastaContent: `>${rawAiOutput.candidateName} | Target: ${pathogen.name} | Length: ${rawAiOutput.sequence.length}aa | Provider: ${provider}\n${rawAiOutput.sequence}`,
     synthesisProtocol: {
       nTerminalModification: 'Free amine (unblocked) for optimal N-terminal positive dipole',

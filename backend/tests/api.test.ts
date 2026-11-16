@@ -7,14 +7,21 @@ import { computeHelicalWheel } from '../src/bio-engine/helical-wheel';
 import { analyzeProteaseStability } from '../src/validators/protease-shield';
 import {
   evolvePeptideSequence,
+  resolveLockedPositions,
   scanBeneficialMutations
 } from '../src/ai/mutation-optimizer';
 import {
   compareAgainstBenchmarks,
   getClinicalBenchmarks
 } from '../src/benchmarks/clinical-peptides';
-import { synthesizeBatchWithAI, synthesizePeptideWithAI } from '../src/gemini';
+import {
+  computeSequenceIdentity,
+  synthesizeBatchWithAI,
+  synthesizePeptideWithAI
+} from '../src/gemini';
 import { analyzeSynthesisFeasibility } from '../src/ai/synthesis-feasibility';
+import { evaluateInSilicoGates } from '../src/ai/in-silico-gates';
+import { convertPdbToCif } from '../src/ai/cif-converter';
 import { isDegenerateSequence, normalizeAiPeptideOutput } from '../src/ai/prompt-utils';
 
 test('WHO_PATHOGENS catalog contains unique profiles with valid ranges', () => {
@@ -203,4 +210,90 @@ test('Prompt output normalizer rejects degenerate or repetitive sequences', () =
       ),
     /Rejected degenerate repetitive sequence/
   );
+});
+
+test('In-silico pass/fail gates classify PASS, REVIEW, and FAIL candidates accurately', () => {
+  const melSeq = 'GIGAVLKVLTTGLPALISWIKRKRQQ';
+  const melGates = evaluateInSilicoGates({
+    metrics: calculateBiophysicalMetrics(melSeq),
+    protease: analyzeProteaseStability(melSeq),
+    synthesisFeasibility: analyzeSynthesisFeasibility(melSeq),
+    pathogen: DEFAULT_PATHOGEN
+  });
+  assert.equal(melGates.totalGates, 5);
+  assert.equal(melGates.overallStatus, 'FAIL');
+  assert.equal(melGates.gates.find((g) => g.id === 'HEMOLYSIS_SAFETY')?.passed, false);
+
+  const moderateSeq = 'KLKLFKKILKSLKAVAKK';
+  const moderateGates = evaluateInSilicoGates({
+    metrics: calculateBiophysicalMetrics(moderateSeq),
+    protease: analyzeProteaseStability(moderateSeq),
+    synthesisFeasibility: analyzeSynthesisFeasibility(moderateSeq),
+    pathogen: DEFAULT_PATHOGEN
+  });
+  assert.equal(moderateGates.overallStatus, 'REVIEW');
+
+  const goodSeq = 'KLISAKRGFSQNLWKAQR';
+  const goodGates = evaluateInSilicoGates({
+    metrics: calculateBiophysicalMetrics(goodSeq),
+    protease: analyzeProteaseStability(goodSeq),
+    synthesisFeasibility: analyzeSynthesisFeasibility(goodSeq),
+    pathogen: DEFAULT_PATHOGEN
+  });
+  assert.equal(goodGates.overallStatus, 'PASS');
+  assert.equal(goodGates.passedCount, 5);
+  assert.ok(goodGates.rewardScore >= 80 && goodGates.rewardScore <= 100);
+});
+
+test('Motif scaffolding preserves locked positions and motifs during directed evolution', async () => {
+  const melittin = 'GIGAVLKVLTTGLPALISWIKRKRQQ';
+  const locks = resolveLockedPositions(melittin, [1, 2], 'AVLKV');
+  assert.deepEqual(locks, [1, 2, 4, 5, 6, 7, 8]);
+
+  const scans = scanBeneficialMutations(melittin, DEFAULT_PATHOGEN, locks);
+  for (const cand of scans) {
+    assert.equal(locks.includes(cand.position), false);
+  }
+
+  const trajectory = evolvePeptideSequence(melittin, DEFAULT_PATHOGEN, 3, locks);
+  for (const pos of locks) {
+    assert.equal(trajectory.finalSequence[pos - 1], melittin[pos - 1]);
+  }
+  assert.deepEqual(trajectory.lockedPositions, locks);
+
+  // Offline heuristic synthesis also honors lockedMotif prefix
+  const prevGemini = process.env.GEMINI_API_KEY;
+  const prevGroq = process.env.GROQ_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GROQ_API_KEY;
+  try {
+    const res = await synthesizePeptideWithAI(DEFAULT_PATHOGEN, {
+      pathogenId: DEFAULT_PATHOGEN.id,
+      sequenceLength: 18,
+      poreMechanism: 'toroidal',
+      safetyThreshold: 'high-selectivity',
+      provider: 'auto',
+      autoOptimize: true,
+      lockedMotif: 'KWKLFKK'
+    });
+    assert.ok(res.output.sequence.startsWith('KWKLFKK'));
+  } finally {
+    if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini;
+    if (prevGroq !== undefined) process.env.GROQ_API_KEY = prevGroq;
+  }
+});
+
+test('mmCIF converter preserves exact ATOM count parity and sequence identity helper works', () => {
+  const seq = 'KWKLFKKIEKVGQNVRDG';
+  const pdb = generateAlphaHelixPDB(seq, 'TestAMP');
+  const cif = convertPdbToCif(pdb, 'TestAMP');
+  assert.ok(cif.startsWith('data_TESTAMP'));
+  assert.ok(cif.includes('_atom_site.Cartn_x'));
+
+  const pdbAtoms = pdb.split('\n').filter((l) => l.startsWith('ATOM  ')).length;
+  const cifAtoms = cif.split('\n').filter((l) => l.startsWith('ATOM ')).length;
+  assert.equal(cifAtoms, pdbAtoms);
+
+  assert.equal(computeSequenceIdentity('AAAAAA', 'AAAAAA'), 1);
+  assert.equal(computeSequenceIdentity('AAAAAA', 'AAAKKK'), 0.5);
 });

@@ -17,13 +17,25 @@ RULES:
 6. Reply ONLY valid raw JSON:
 {"candidateName":"string","sequence":"string","molecularRationale":"2 concise sentences","membraneAffinityExplanation":"2 concise sentences"}`;
 
+export function sanitizeLockedMotif(rawMotif: string | undefined, targetLength: number): string | undefined {
+  if (!rawMotif || typeof rawMotif !== 'string') return undefined;
+  const clean = rawMotif.toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
+  if (clean.length < 2 || clean.length >= targetLength) return undefined;
+  return clean.slice(0, Math.min(12, targetLength - 1));
+}
+
 export function buildPeptidePrompt(
   pathogen: PathogenProfile,
   params: PeptideDesignParams
 ): string {
+  const motif = sanitizeLockedMotif(params.lockedMotif, params.sequenceLength);
+  const motifConstraint = motif
+    ? `\nScaffold constraint: Include and preserve the exact active motif "${motif}" within the sequence.`
+    : '';
+
   return `Design a ${params.sequenceLength}aa AMP for ${pathogen.name} (${pathogen.scientificName}, Gram-${pathogen.gramType}, WHO ${pathogen.whoPriority}).
 Membrane: ${pathogen.membraneCharacteristics.outerMembraneCharge}mV, ${pathogen.membraneCharacteristics.pgLipidRatio}% PG lipids (${pathogen.membraneCharacteristics.barrierDescription}).
-Target charge: +${pathogen.suggestedChargeRange[0]} to +${pathogen.suggestedChargeRange[1]}. Mechanism: ${params.poreMechanism}. Safety: ${params.safetyThreshold}.
+Target charge: +${pathogen.suggestedChargeRange[0]} to +${pathogen.suggestedChargeRange[1]}. Mechanism: ${params.poreMechanism}. Safety: ${params.safetyThreshold}.${motifConstraint}
 Return ONLY JSON.`;
 }
 

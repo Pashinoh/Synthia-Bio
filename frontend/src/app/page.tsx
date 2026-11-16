@@ -13,110 +13,53 @@ import { HelicalWheelChart } from '@/components/charts/HelicalWheelChart';
 import { ChargePhChart } from '@/components/charts/ChargePhChart';
 import { SynthesisModal } from '@/components/export/SynthesisModal';
 import { usePeptideStore } from '@/store/usePeptideStore';
-import { Sparkles, Activity, Dna, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export default function Home() {
-  const {
-    currentPeptide,
-    error,
-    proteaseReport,
-    helicalWheel,
-    chargePhCurve,
-    isLoading,
-    validateStability
-  } = usePeptideStore();
+  const { currentPeptide, error, proteaseReport, helicalWheel, chargePhCurve } = usePeptideStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
-      {/* Top Navigation Header */}
+    <div className="flex min-h-screen flex-col bg-ground text-ink">
       <Header />
 
-      {/* Main Interactive Studio Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Banner Announcement */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-950/60 via-slate-900/80 to-emerald-950/40 border border-cyan-500/20 p-4 sm:p-5 shadow-2xl backdrop-blur-md">
-          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-                <span className="text-xs font-mono font-bold text-cyan-300 uppercase tracking-widest">
-                  AI-Powered Antimicrobial Discovery Engine
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                De Novo Peptide Synthesis & 3D Conformation Studio
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-                Combines Google Gemini 1.5 generative intelligence with zero-hallucination Eisenberg consensus bio-physics to engineer next-generation antimicrobial peptides against critical drug-resistant superbugs.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="text-right hidden sm:block font-mono">
-                <span className="text-[10px] text-slate-400 block">Active AI Core</span>
-                <span className="text-xs font-bold text-cyan-300">Gemini 1.5 Flash</span>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                <Sparkles className="w-5 h-5" />
-              </div>
-            </div>
-          </div>
+      <main className="mx-auto w-full max-w-[1440px] flex-1 px-5 py-8 sm:px-8">
+        <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
+            In silico · WHO priority pathogens
+          </p>
         </div>
 
-        {/* Error notification if any */}
         {error && (
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2 font-mono">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div className="mb-5 border-l-2 border-warn bg-warn-soft px-3 py-2.5">
+            <p className="text-[11px] leading-relaxed text-ink-2">{error}</p>
           </div>
         )}
 
-        {/* Dual-Column Responsive Studio Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT COLUMN: Controls & Sequence Details (5 Cols) */}
-          <div className="lg:col-span-5 space-y-6">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:gap-6">
+          {/* Control rail */}
+          <div className="space-y-4">
             <PathogenSelector />
             <ParameterControls />
             <SequenceCard onOpenProtocol={() => setIsModalOpen(true)} />
-            {currentPeptide && (
-              <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-md">
-                <button
-                  onClick={() => validateStability(currentPeptide.sequence)}
-                  disabled={isLoading}
-                  className="w-full py-3 px-4 rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-900 text-xs font-mono text-slate-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <span className="animate-pulse">Validating Stability…</span>
-                  ) : (
-                    <>
-                      <ShieldAlert className="w-3.5 h-3.5" />
-                      <span>Validate Stability (Protease Shield)</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* RIGHT COLUMN: 3D Molecular Canvas & Biophysical Analytics (7 Cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* 3D WebGL Canvas Card */}
+          {/* Workspace */}
+          <div className="space-y-4">
             {currentPeptide ? (
               <MoleculeViewer
                 pdbContent={currentPeptide.pdbContent}
                 peptideName={currentPeptide.name}
               />
             ) : (
-              <div className="w-full h-[420px] rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col items-center justify-center">
-                <Dna className="w-8 h-8 text-slate-600 animate-pulse mb-2" />
-                <p className="text-xs text-slate-500 font-mono">Select parameters and generate a peptide</p>
+              <div className="flex h-[420px] w-full items-center justify-center bg-stage lg:h-[520px]">
+                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#a8a8a8]">
+                  Generate a candidate to load the structure
+                </p>
               </div>
             )}
 
-            {/* Biophysical Charts Grid */}
             {currentPeptide && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-4">
                   <BiophysicalRadar metrics={currentPeptide.metrics} />
                   <HelicalWheelChart wheel={helicalWheel} />
@@ -128,24 +71,26 @@ export default function Home() {
               </div>
             )}
 
-            {/* Protease Shield Panel */}
-            {currentPeptide && proteaseReport && (
-              <ProteaseShieldPanel report={proteaseReport} />
-            )}
+            {currentPeptide && proteaseReport && <ProteaseShieldPanel report={proteaseReport} />}
           </div>
         </div>
       </main>
 
-      {/* Synthesis Protocol Modal */}
       <SynthesisModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         peptide={currentPeptide}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 mt-12 text-center text-xs text-slate-500 font-mono">
-        <p>SynthiaBio • Built for the STEM2Connect AI Hackathon (Devpost) • Open Source (MIT License)</p>
+      <footer className="mt-6 border-t border-line">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center gap-4 px-5 py-6 sm:px-8">
+          <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+            SynthiaBio © 2024. All rights reserved.
+          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+            Open source
+          </p>
+        </div>
       </footer>
     </div>
   );

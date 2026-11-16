@@ -10,7 +10,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Dot,
   ReferenceLine,
 } from 'recharts';
 
@@ -21,57 +20,83 @@ interface ChargePhChartProps {
 export const ChargePhChart: React.FC<ChargePhChartProps> = ({ curve }) => {
   if (!curve) {
     return (
-      <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl flex flex-col items-center justify-center h-64">
-        <p className="text-xs text-slate-500 font-mono">Generate a peptide to view charge-pH curve</p>
-      </div>
+      <section className="flex flex-col bg-surface p-5">
+        <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
+          Charge vs pH
+        </h3>
+        <p className="py-4 font-mono text-[11px] text-ink-3">Awaits stability validation</p>
+      </section>
     );
   }
 
   return (
-    <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-200 font-mono">Charge vs pH Titration</h3>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300">
-          pI: {curve.isoelectricPoint.toFixed(2)}
-        </span>
+    <section className="flex flex-col bg-surface p-5">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
+          Charge vs pH
+        </h3>
+        <span className="font-mono text-[10px] text-ink-3">pI {curve.isoelectricPoint.toFixed(2)}</span>
       </div>
 
-      <div className="flex-1 min-h-[260px]">
+      <div className="h-[220px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={curve.points}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="ph" type="number" domain={[2, 12]} tick={{ fill: '#94A3B8', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#94A3B8', fontSize: 10 }} />
+          <LineChart data={curve.points} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+            <CartesianGrid stroke="#e0e0e0" vertical={false} />
+            <XAxis
+              dataKey="ph"
+              type="number"
+              domain={[2, 12]}
+              tick={{ fill: '#6f6f6f', fontSize: 10, fontFamily: 'var(--font-ibm-plex-mono)' }}
+              tickLine={false}
+              axisLine={{ stroke: '#c6c6c6' }}
+            />
+            <YAxis
+              tick={{ fill: '#6f6f6f', fontSize: 10, fontFamily: 'var(--font-ibm-plex-mono)' }}
+              tickLine={false}
+              axisLine={false}
+            />
             <Tooltip
+              cursor={{ stroke: '#c6c6c6', strokeDasharray: '2 2' }}
               content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const item = payload[0].payload as { ph: number; charge: number };
-                  return (
-                    <div className="bg-slate-950/95 border border-slate-700 p-2.5 rounded-xl shadow-xl text-xs font-mono">
-                      <p className="text-cyan-300 font-bold">pH {item.ph}</p>
-                      <p className="text-slate-200">Charge {item.charge}</p>
-                    </div>
-                  );
-                }
-                return null;
+                if (!active || !payload?.length) return null;
+                const item = payload[0].payload as { ph: number; charge: number };
+                return (
+                  <div className="bg-stage px-2.5 py-2 font-mono text-[11px] text-[#f4f4f4]">
+                    <p className="font-semibold">pH {item.ph}</p>
+                    <p className="text-[#c6c6c6]">Charge {item.charge}</p>
+                  </div>
+                );
               }}
             />
-            <Line type="monotone" dataKey="charge" stroke="#00F0FF" strokeWidth={2} dot={false} />
-            <Dot fill="#00F0FF" />
             <ReferenceLine
               x={curve.isoelectricPoint}
-              stroke="#EF4444"
+              stroke="#525252"
               strokeDasharray="3 3"
-              label={`pI: ${curve.isoelectricPoint.toFixed(2)}`}
+              label={{
+                value: 'pI',
+                position: 'insideTopRight',
+                fill: '#525252',
+                fontSize: 10,
+                fontFamily: 'var(--font-ibm-plex-mono)'
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="charge"
+              stroke="#0f62fe"
+              strokeWidth={1.5}
+              dot={false}
+              activeDot={{ r: 3, fill: '#0f62fe', stroke: '#ffffff', strokeWidth: 1 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-2 p-2 rounded-xl bg-slate-950/60 border border-slate-800 text-[10px] font-mono text-center">
-        <span className="text-slate-400">pH range: 2.0 – 12.0</span>
-        <span className="ml-2 text-slate-200">Points: {curve.points.length}</span>
+      <div className="mt-2 flex items-baseline justify-between border-t border-line pt-3 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+        <span>pH 2 – 12</span>
+        <span>{curve.points.length} points</span>
       </div>
-    </div>
+    </section>
   );
 };

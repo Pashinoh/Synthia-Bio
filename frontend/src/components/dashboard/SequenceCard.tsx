@@ -1,24 +1,68 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePeptideStore } from '@/store/usePeptideStore';
-import { Copy, Check, Download, FileText, Sparkles, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Check, Copy, Download, FileText, ShieldAlert } from 'lucide-react';
 import { AMINO_ACID_TABLE } from '@/lib/bio-engine/eisenberg-scale';
 
 interface CardProps {
   onOpenProtocol: () => void;
 }
 
+const residueTone = (residue: string) => {
+  const category = AMINO_ACID_TABLE[residue]?.category;
+  if (category === 'positive') return 'text-accent';
+  if (category === 'hydrophobic') return 'text-ink font-semibold';
+  if (category === 'negative') return 'text-danger';
+  return 'text-ink-3';
+};
+
 export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
-  const { currentPeptide } = usePeptideStore();
+  const { currentPeptide, validateStability, isLoading, generation } = usePeptideStore();
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
 
   if (!currentPeptide) return null;
 
-  const handleCopyFasta = () => {
-    navigator.clipboard.writeText(currentPeptide.fastaContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const closeMenu = () => {
+    setMenuOpen(false);
+    buttonRef.current?.focus();
+  };
+
+  const handleCopyFasta = async () => {
+    try {
+      await navigator.clipboard.writeText(currentPeptide.fastaContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable (insecure context) — no-op
+    }
+    closeMenu();
   };
 
   const handleDownloadPdb = () => {
@@ -31,72 +75,96 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    closeMenu();
   };
 
-  const getResidueColor = (char: string) => {
-    const data = AMINO_ACID_TABLE[char];
-    if (!data) return 'text-slate-200';
-    if (data.category === 'positive') return 'text-cyan-400 bg-cyan-950/40 border-cyan-500/30';
-    if (data.category === 'hydrophobic') return 'text-amber-400 bg-amber-950/40 border-amber-500/30';
-    if (data.category === 'negative') return 'text-red-400 bg-red-950/40 border-red-500/30';
-    return 'text-blue-300 bg-blue-950/40 border-blue-500/30';
+  const handleOpenProtocol = () => {
+    onOpenProtocol();
+    closeMenu();
   };
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md shadow-xl space-y-4">
-      {/* Header Info */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-base font-bold font-mono text-cyan-300">{currentPeptide.name}</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-              {currentPeptide.length} Residues
+    <section className="bg-surface">
+      <div className="flex items-start justify-between gap-3 p-5 pb-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-mono text-[15px] font-semibold tracking-tight text-ink">
+              {currentPeptide.name}
+            </h2>
+            <span className="bg-sunken px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-2">
+              Gen {String(generation).padStart(2, '0')}
             </span>
+            <span className="font-mono text-[10px] text-ink-3">{currentPeptide.length} aa</span>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">Target: {currentPeptide.targetPathogen}</p>
+          <p className="mt-1 truncate text-[11px] text-ink-3">
+            Target · {currentPeptide.targetPathogen}
+          </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="relative shrink-0" ref={menuRef}>
           <button
-            onClick={handleCopyFasta}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-xs font-mono text-slate-200 transition-all shadow-sm"
+            ref={buttonRef}
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+            className={`flex h-8 items-center gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors ${
+              menuOpen ? 'bg-stage text-white' : 'bg-sunken text-ink-2 hover:text-ink'
+            }`}
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-            <span>{copied ? 'Copied' : 'FASTA'}</span>
+            <span>{copied ? 'Copied' : 'Export'}</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
           </button>
 
-          <button
-            onClick={handleDownloadPdb}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 text-xs font-mono text-cyan-300 transition-all shadow-sm"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>.PDB File</span>
-          </button>
-
-          <button
-            onClick={onOpenProtocol}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-xs font-mono text-emerald-300 transition-all shadow-sm"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Lab Sheet</span>
-          </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              aria-label="Export candidate"
+              className="absolute right-0 top-full z-40 mt-1 w-56 border-t-2 border-accent bg-stage py-1"
+            >
+              {[
+                { label: 'Copy FASTA', hint: '.fasta', icon: Copy, onSelect: handleCopyFasta },
+                { label: 'Download PDB', hint: '.pdb', icon: Download, onSelect: handleDownloadPdb },
+                { label: 'Lab sheet', hint: 'print', icon: FileText, onSelect: handleOpenProtocol }
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  role="menuitem"
+                  type="button"
+                  onClick={() => void item.onSelect()}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[12px] text-[#f4f4f4] hover:bg-[#262626] focus-visible:bg-[#262626] focus-visible:outline-none"
+                >
+                  <item.icon className="h-3.5 w-3.5 shrink-0 text-[#a8a8a8]" aria-hidden />
+                  <span className="flex-1">{item.label}</span>
+                  <span className="font-mono text-[10px] text-[#8d8d8d]">{item.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Visual Sequence Chain */}
-      <div>
-        <label className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block mb-1.5">
-          Primary Amino Acid Sequence
-        </label>
-        <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-950/80 border border-slate-800 font-mono text-sm">
+      {/* Residue chain */}
+      <div className="px-5">
+        <div className="flex items-baseline justify-between">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
+            Primary sequence
+          </span>
+          {copied && (
+            <span className="flex items-center gap-1 font-mono text-[10px] text-ink-3">
+              <Check className="h-3 w-3" aria-hidden /> copied
+            </span>
+          )}
+        </div>
+        <div className="od-scroll mt-2 flex flex-wrap gap-y-0.5 bg-sunken px-3 py-2.5 font-mono text-[13px] leading-6 tracking-[0.16em]">
           {currentPeptide.sequence.split('').map((residue, idx) => (
             <span
               key={idx}
-              title={`Pos ${idx + 1}: ${AMINO_ACID_TABLE[residue]?.fullName || residue} (${AMINO_ACID_TABLE[residue]?.category})`}
-              className={`w-7 h-8 flex items-center justify-center rounded-lg font-bold border transition-transform hover:scale-110 cursor-pointer ${getResidueColor(
-                residue
-              )}`}
+              title={`${idx + 1} · ${AMINO_ACID_TABLE[residue]?.fullName || residue} (${AMINO_ACID_TABLE[residue]?.category ?? 'unknown'})`}
+              className={`cursor-default transition-colors hover:bg-[#e0e0e0] ${residueTone(residue)}`}
             >
               {residue}
             </span>
@@ -104,24 +172,37 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
         </div>
       </div>
 
-      {/* Scientific Rationale */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-        <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-cyan-400 font-semibold mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Biochemical Rationale</span>
-          </div>
-          <p className="text-slate-300 leading-relaxed">{currentPeptide.molecularRationale}</p>
+      {/* Rationale */}
+      <div className="mt-4 space-y-2 px-5">
+        <div className="bg-sunken px-3 py-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-3">
+            Rationale
+          </span>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-2">
+            {currentPeptide.molecularRationale}
+          </p>
         </div>
-
-        <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-emerald-400 font-semibold mb-1">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Membrane Affinity Mode</span>
-          </div>
-          <p className="text-slate-300 leading-relaxed">{currentPeptide.membraneAffinityExplanation}</p>
+        <div className="bg-sunken px-3 py-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-3">
+            Membrane affinity
+          </span>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-2">
+            {currentPeptide.membraneAffinityExplanation}
+          </p>
         </div>
       </div>
-    </div>
+
+      <div className="p-5 pt-4">
+        <button
+          type="button"
+          onClick={() => void validateStability(currentPeptide.sequence)}
+          disabled={isLoading}
+          className="flex h-10 w-full items-center justify-center gap-2 border border-line-2 text-[11px] font-medium text-ink transition-colors hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
+          {isLoading ? 'Validating stability…' : 'Validate stability'}
+        </button>
+      </div>
+    </section>
   );
 };

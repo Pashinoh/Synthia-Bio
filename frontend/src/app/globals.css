@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-ibm-plex-sans);
+  --font-mono: var(--font-ibm-plex-mono);
+
+  --color-ground: #f4f4f4;
+  --color-surface: #ffffff;
+  --color-sunken: #f4f4f4;
+
+  --color-ink: #161616;
+  --color-ink-2: #525252;
+  --color-ink-3: #6f6f6f;
+
+  --color-line: #e0e0e0;
+  --color-line-2: #c6c6c6;
+
+  --color-accent: #0f62fe;
+  --color-accent-hover: #0043ce;
+  --color-accent-soft: #edf5ff;
+
+  --color-danger: #da1e28;
+  --color-danger-soft: #fff1f1;
+
+  --color-warn: #8e6a00;
+  --color-warn-soft: #fcf4d6;
+
+  --color-stage: #161616;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #f4f4f4;
+  color: #161616;
+  font-family: var(--font-ibm-plex-sans), system-ui, sans-serif;
+  font-feature-settings: "tnum" 1;
+}
+
+::selection {
+  background: #d0e2ff;
+  color: #161616;
+}
+
+:focus-visible {
+  outline: 2px solid #0f62fe;
+  outline-offset: 2px;
+}
+
+/* Carbon-style slider: thin neutral track, square accent thumb */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: #c6c6c6;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: #c6c6c6;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border: 0;
+  background: #0f62fe;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  background: #0f62fe;
+}
+
+input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Dark scrollbars inside the stage and menus */
+.od-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #8d8d8d transparent;
+}
+
+.od-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.od-scroll::-webkit-scrollbar-thumb {
+  background: #8d8d8d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
 }

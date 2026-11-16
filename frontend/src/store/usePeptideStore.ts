@@ -24,6 +24,7 @@ interface PeptideState {
   error: string | null;
   active3dMode: Display3DMode;
   colorScheme: ColorScheme;
+  generation: number;
 
   // Actions
   setSelectedPathogen: (pathogen: PathogenProfile) => void;
@@ -51,6 +52,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   error: null,
   active3dMode: 'cartoon',
   colorScheme: 'hydrophobicity',
+  generation: 1,
 
   setSelectedPathogen: (pathogen) => {
     set({
@@ -155,6 +157,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
 
       set({
         currentPeptide: data.peptide,
+        generation: get().generation + 1,
         isLoading: false,
         error: null
       });
@@ -164,6 +167,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
       // Graceful fallback to mock data so UI never breaks
       set({
         currentPeptide: MOCK_GENERATED_PEPTIDE,
+        generation: get().generation + 1,
         isLoading: false,
         error: `${errorMessage} (Demonstrating using verified reference candidate)`
       });

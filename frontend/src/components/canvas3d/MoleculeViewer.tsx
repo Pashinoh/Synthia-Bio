@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { RotateCw, ZoomIn, Eye, Layers, Palette, RefreshCw } from 'lucide-react';
+import { RotateCw, RefreshCw } from 'lucide-react';
 import { Display3DMode, ColorScheme, usePeptideStore } from '@/store/usePeptideStore';
 
 interface Viewer3DProps {
@@ -17,6 +17,8 @@ declare global {
     };
   }
 }
+
+const STAGE_BG = '#161616';
 
 export const MoleculeViewer: React.FC<Viewer3DProps> = ({ pdbContent, peptideName }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,17 +51,12 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = ({ pdbContent, peptideNam
   const renderMolecule = useCallback(() => {
     if (!containerRef.current || !window.$3Dmol || !pdbContent) return;
 
-    // Clear previous viewer if any
     containerRef.current.innerHTML = '';
 
-    const config = { backgroundColor: '#090D16' };
-    const viewer = window.$3Dmol.createViewer(containerRef.current, config);
+    const viewer = window.$3Dmol.createViewer(containerRef.current, { backgroundColor: STAGE_BG });
     viewerRef.current = viewer;
 
-    // Add model from PDB string
     viewer.addModel(pdbContent, 'pdb');
-
-    // Apply color styling based on selected scheme
     applyStyle(viewer, active3dMode, colorScheme);
 
     viewer.zoomTo();
@@ -76,7 +73,6 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = ({ pdbContent, peptideNam
     }
   }, [isScriptLoaded, renderMolecule]);
 
-  // Handle spin toggle
   const toggleSpin = () => {
     if (!viewerRef.current) return;
     if (isSpinning) {
@@ -95,91 +91,91 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = ({ pdbContent, peptideNam
     }
   };
 
-  return (
-    <div className="relative w-full h-[420px] lg:h-[480px] bg-slate-950/80 rounded-2xl border border-cyan-500/20 overflow-hidden shadow-2xl backdrop-blur-md flex flex-col">
-      {/* Top Floating Bar */}
-      <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/90 border border-slate-700/60 rounded-xl px-3 py-1.5 shadow-lg backdrop-blur-md">
-          <Eye className="w-4 h-4 text-cyan-400" />
-          <span className="text-xs font-mono font-semibold text-slate-200">
-            {peptideName || '3D Alpha-Helix'}
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono">
-            WebGL
-          </span>
-        </div>
+  const chipClass = (active: boolean) =>
+    `h-8 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
+      active ? 'bg-[#f4f4f4] text-ink' : 'text-[#c6c6c6] hover:bg-[#262626] hover:text-white'
+    }`;
 
-        {/* View Controls */}
-        <div className="pointer-events-auto flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/60 rounded-xl p-1 shadow-lg backdrop-blur-md">
-          <button
-            onClick={toggleSpin}
-            title={isSpinning ? 'Pause rotation' : 'Auto rotate'}
-            className={`p-1.5 rounded-lg text-xs transition-colors ${
-              isSpinning ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={resetView}
-            title="Reset Camera Center"
-            className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
+  return (
+    <div className="relative flex h-[420px] w-full flex-col overflow-hidden bg-stage lg:h-[520px]">
+      {/* Stage label */}
+      <div className="pointer-events-none absolute left-4 top-3.5 z-10">
+        <span className="block font-mono text-[10px] uppercase tracking-[0.14em] text-[#8d8d8d]">
+          3D conformation
+        </span>
+        <span className="block font-mono text-[11px] text-[#f4f4f4]">
+          {peptideName || 'Alpha-helix model'}
+        </span>
       </div>
 
-      {/* 3D WebGL Canvas Container */}
+      {/* 3D canvas */}
       <div
         ref={containerRef}
-        className="w-full flex-1 cursor-grab active:cursor-grabbing"
-        title="Click and drag to rotate, scroll to zoom"
+        className="h-full w-full cursor-grab active:cursor-grabbing"
+        title="Drag to rotate, scroll to zoom"
       />
 
       {!isScriptLoaded && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 z-20">
-          <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-2" />
-          <p className="text-xs font-mono text-cyan-300">Initializing WebGL Molecular Engine...</p>
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-stage">
+          <span className="h-4 w-4 animate-spin border border-[#4589ff] border-t-transparent" aria-hidden />
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#a8a8a8]">
+            Initializing WebGL
+          </p>
         </div>
       )}
 
-      {/* Bottom Floating Mode Switcher */}
-      <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Render Style Mode */}
-        <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/90 border border-slate-700/60 rounded-xl p-1 shadow-lg backdrop-blur-md">
-          <Layers className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-0.5" />
+      {/* Single control bar */}
+      <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-px bg-[#161616]/72 p-px backdrop-blur-md">
+        <div className="flex flex-wrap items-center" role="group" aria-label="Render style">
           {(['cartoon', 'surface', 'stick', 'sphere'] as Display3DMode[]).map((mode) => (
             <button
               key={mode}
+              type="button"
+              aria-pressed={active3dMode === mode}
               onClick={() => setActive3dMode(mode)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-all ${
-                active3dMode === mode
-                  ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              className={chipClass(active3dMode === mode)}
             >
               {mode}
             </button>
           ))}
         </div>
 
-        {/* Color Palette Scheme */}
-        <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/90 border border-slate-700/60 rounded-xl p-1 shadow-lg backdrop-blur-md">
-          <Palette className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-0.5" />
+        <span className="mx-1 h-5 w-px bg-[#393939]" aria-hidden />
+
+        <div className="flex flex-wrap items-center" role="group" aria-label="Color map">
           {(['hydrophobicity', 'charge', 'spectrum'] as ColorScheme[]).map((scheme) => (
             <button
               key={scheme}
+              type="button"
+              aria-pressed={colorScheme === scheme}
               onClick={() => setColorScheme(scheme)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-all ${
-                colorScheme === scheme
-                  ? 'bg-emerald-500 text-slate-950 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              className={chipClass(colorScheme === scheme)}
             >
-              {scheme}
+              {scheme === 'hydrophobicity' ? 'hydro' : scheme}
             </button>
           ))}
+        </div>
+
+        <div className="ml-auto flex items-center">
+          <button
+            type="button"
+            onClick={toggleSpin}
+            aria-pressed={isSpinning}
+            title={isSpinning ? 'Pause rotation' : 'Resume rotation'}
+            className={`h-8 w-8 transition-colors ${
+              isSpinning ? 'text-[#4589ff]' : 'text-[#a8a8a8] hover:bg-[#262626] hover:text-white'
+            }`}
+          >
+            <RotateCw className="mx-auto h-3.5 w-3.5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            title="Reset camera"
+            className="h-8 w-8 text-[#a8a8a8] transition-colors hover:bg-[#262626] hover:text-white"
+          >
+            <RefreshCw className="mx-auto h-3.5 w-3.5" aria-hidden />
+          </button>
         </div>
       </div>
     </div>
@@ -190,7 +186,6 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = ({ pdbContent, peptideNam
  * Applies 3Dmol representation and color mapping
  */
 function applyStyle(viewer: any, mode: Display3DMode, scheme: ColorScheme) {
-  // Clear any existing styles
   viewer.setStyle({}, {});
 
   let colorFunc: Record<string, unknown> = { color: 'spectrum' };
@@ -209,7 +204,7 @@ function applyStyle(viewer: any, mode: Display3DMode, scheme: ColorScheme) {
     colorFunc = {
       colorscheme: {
         prop: 'elem',
-        map: { N: '#00F0FF', O: '#EF4444', C: '#64748B' }
+        map: { N: '#4589ff', O: '#da1e28', C: '#8d8d8d' }
       }
     };
   }
@@ -219,13 +214,14 @@ function applyStyle(viewer: any, mode: Display3DMode, scheme: ColorScheme) {
       viewer.setStyle({}, { cartoon: { ...colorFunc, thickness: 0.5, ribbon: true } });
       break;
     case 'surface':
-      viewer.setStyle({}, { cartoon: { color: '#334155' } });
+      viewer.setStyle({}, { cartoon: { color: '#525252' } });
       viewer.addSurface(
         viewer.SurfaceType?.VDW || 1,
         {
           opacity: 0.75,
-          colorscheme: scheme === 'hydrophobicity' ? { prop: 'b', gradient: 'rwb', min: 15, max: 65 } : undefined,
-          color: scheme === 'hydrophobicity' ? undefined : '#00F0FF'
+          colorscheme:
+            scheme === 'hydrophobicity' ? { prop: 'b', gradient: 'rwb', min: 15, max: 65 } : undefined,
+          color: scheme === 'hydrophobicity' ? undefined : '#4589ff'
         }
       );
       break;

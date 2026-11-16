@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { GeneratedPeptide } from '@/types/peptide';
-import { X, Printer, Beaker, CheckCircle2, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { X, Printer, ShieldAlert } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -11,158 +11,174 @@ interface ModalProps {
 }
 
 export const SynthesisModal: React.FC<ModalProps> = ({ isOpen, onClose, peptide }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen || !peptide) return null;
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const spec = [
+    ['Method', peptide.synthesisProtocol.recommendedMethod],
+    ['N-terminus', peptide.synthesisProtocol.nTerminalModification],
+    ['C-terminus', peptide.synthesisProtocol.cTerminalModification],
+    ['Purification', peptide.synthesisProtocol.purificationTechnique],
+    ['Storage', peptide.synthesisProtocol.storageCondition]
+  ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden text-slate-200">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-950/50">
-          <div className="flex items-center gap-2.5">
-            <Beaker className="w-5 h-5 text-emerald-400" />
-            <div>
-              <h2 className="text-base font-bold text-white font-mono">Wet-Lab Synthesis Specification</h2>
-              <p className="text-xs text-slate-400">Standard Solid-Phase Peptide Synthesis (SPPS) Sheet</p>
-            </div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="synthesis-title"
+        onClick={(event) => event.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col bg-surface"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+          <div>
+            <h2 id="synthesis-title" className="text-[15px] font-semibold text-ink">
+              Wet-lab synthesis specification
+            </h2>
+            <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
+              Solid-phase peptide synthesis sheet
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             <button
-              onClick={handlePrint}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1.5 transition-colors"
+              type="button"
+              onClick={() => window.print()}
+              className="flex h-8 items-center gap-1.5 px-2.5 text-[11px] text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
             >
-              <Printer className="w-4 h-4" />
-              <span>Print Sheet</span>
+              <Printer className="h-3.5 w-3.5" aria-hidden />
+              Print
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" aria-hidden />
             </button>
           </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto font-mono text-xs">
-          {/* Metadata Grid */}
-          <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-            <div>
-              <span className="text-slate-500 block text-[10px]">CANDIDATE CODE</span>
-              <span className="font-bold text-cyan-300">{peptide.name}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">TARGET PATHOGEN</span>
-              <span className="font-bold text-slate-200">{peptide.targetPathogen}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">RESIDUE COUNT</span>
-              <span className="text-slate-200">{peptide.length} Amino Acids</span>
-            </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">NET CHARGE (pH 7.4)</span>
-              <span className="font-bold text-emerald-400">+{peptide.metrics.netCharge} e</span>
-            </div>
+        {/* Body */}
+        <div className="od-scroll flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          <div className="grid grid-cols-2 gap-px bg-line">
+            {[
+              ['Candidate', peptide.name],
+              ['Target', peptide.targetPathogen],
+              ['Length', `${peptide.length} aa`],
+              ['Net charge', `+${peptide.metrics.netCharge} e`]
+            ].map(([label, value]) => (
+              <div key={label} className="bg-sunken px-4 py-3">
+                <span className="block font-mono text-[9px] uppercase tracking-[0.12em] text-ink-3">
+                  {label}
+                </span>
+                <span className="mt-0.5 block font-mono text-[12px] text-ink">{value}</span>
+              </div>
+            ))}
           </div>
 
-          {/* Sequence Display */}
           <div>
-            <span className="text-slate-400 text-[11px] block mb-1">TARGET AMINO ACID SEQUENCE:</span>
-            <div className="p-3 rounded-xl bg-slate-950 border border-cyan-500/30 text-cyan-300 font-bold tracking-widest break-all">
+            <span className="mb-1.5 block font-mono text-[9px] uppercase tracking-[0.12em] text-ink-3">
+              Sequence
+            </span>
+            <p className="break-all bg-sunken px-3 py-2.5 font-mono text-[13px] tracking-[0.14em] text-ink">
               {peptide.sequence}
-            </div>
+            </p>
           </div>
 
-          {/* Specifications */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Chemical Synthesis Protocol</span>
+          <div>
+            <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
+              Chemical synthesis protocol
             </h3>
-
-            <div className="space-y-2 border-l-2 border-slate-700 pl-4">
-              <div>
-                <span className="text-slate-400 font-semibold">Recommended Method:</span>
-                <p className="text-slate-300">{peptide.synthesisProtocol.recommendedMethod}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 font-semibold">N-Terminal Modification:</span>
-                <p className="text-slate-300">{peptide.synthesisProtocol.nTerminalModification}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 font-semibold">C-Terminal Modification:</span>
-                <p className="text-slate-300">{peptide.synthesisProtocol.cTerminalModification}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 font-semibold">Purification Standard:</span>
-                <p className="text-slate-300">{peptide.synthesisProtocol.purificationTechnique}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 font-semibold">Storage & Reconstitution:</span>
-                <p className="text-slate-300">{peptide.synthesisProtocol.storageCondition}</p>
-              </div>
-            </div>
+            <dl className="border-t border-line">
+              {spec.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="grid grid-cols-[110px_1fr] gap-3 border-b border-line py-2"
+                >
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.06em] text-ink-3">
+                    {label}
+                  </dt>
+                  <dd className="text-[11px] leading-relaxed text-ink-2">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
-          {/* Synthesis Feasibility */}
           {peptide.synthesisFeasibility && (
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Synthesis Feasibility</span>
+            <div>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
+                Synthesis feasibility
               </h3>
-              <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80">
-                <div className="flex justify-between text-[10px] font-mono mb-1">
-                  <span className="text-slate-400">Feasibility Score</span>
-                  <span className="text-emerald-400">{peptide.synthesisFeasibility.feasibilityScore}/100</span>
-                </div>
-                <div className="flex justify-between text-[10px] font-mono mb-1">
-                  <span className="text-slate-400">SPPS Difficulty</span>
-                  <span className="text-slate-200">{peptide.synthesisFeasibility.sppsDifficulty}</span>
-                </div>
-                <div className="flex justify-between text-[10px] font-mono mb-1">
-                  <span className="text-slate-400">Aqueous Solubility</span>
-                  <span className="text-slate-200">{peptide.synthesisFeasibility.aqueousSolubility}</span>
-                </div>
-                {peptide.synthesisFeasibility.liabilities.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-[10px] text-slate-400 font-mono mb-1">Liabilities</div>
-                    <ul className="space-y-1">
-                      {peptide.synthesisFeasibility.liabilities.map((liability, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-[9px] text-amber-400 shrink-0">⚠</span>
-                          <p className="text-[10px] text-slate-300 leading-relaxed">
-                            {typeof liability === 'string' ? liability : liability.description}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
+              <div className="space-y-1">
+                {[
+                  ['Feasibility', `${peptide.synthesisFeasibility.feasibilityScore}/100`],
+                  ['SPPS difficulty', peptide.synthesisFeasibility.sppsDifficulty],
+                  ['Solubility', peptide.synthesisFeasibility.aqueousSolubility]
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-3">
+                    <span className="text-[11px] text-ink-3">{label}</span>
+                    <span className="font-mono text-[11px] tabular-nums text-ink">{value}</span>
                   </div>
-                )}
+                ))}
               </div>
+
+              {peptide.synthesisFeasibility.liabilities.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {peptide.synthesisFeasibility.liabilities.map((liability, i) => (
+                    <li key={i} className="flex gap-2 border-l-2 border-warn bg-warn-soft px-2.5 py-1.5">
+                      <span className="font-mono text-[10px] text-warn" aria-hidden>
+                        !
+                      </span>
+                      <p className="text-[11px] leading-relaxed text-ink-2">
+                        {typeof liability === 'string' ? liability : liability.description}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
-          {/* Caution Alert */}
-          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-start gap-2">
-            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-            <p className="leading-relaxed">
-              This candidate is generated for computational in-silico and experimental research validation under the STEM2Connect Hackathon guidelines. Perform in vitro minimum inhibitory concentration (MIC) assays prior to in vivo testing.
+          <div className="flex gap-2.5 border-l-2 border-warn bg-warn-soft px-3 py-2.5">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
+            <p className="text-[11px] leading-relaxed text-ink-2">
+              Generated for in-silico and experimental research validation under the STEM2Connect
+              Hackathon guidelines. Perform in vitro minimum inhibitory concentration (MIC) assays
+              before in vivo testing.
             </p>
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-          <span className="text-[10px] text-slate-500 font-mono">Generated by SynthiaBio Engine</span>
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-4 border-t border-line px-6 py-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+            SynthiaBio engine
+          </span>
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors"
+            className="h-10 border border-line-2 px-4 text-[11px] font-medium text-ink transition-colors hover:bg-sunken"
           >
-            Close Sheet
+            Close sheet
           </button>
         </div>
       </div>

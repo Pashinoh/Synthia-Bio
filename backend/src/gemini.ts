@@ -8,10 +8,15 @@ import {
   AMP_SYSTEM_INSTRUCTION,
   buildPeptidePrompt,
   normalizeAiPeptideOutput,
-  RawAiPeptideOutput
+  RawAiPeptideOutput,
+  sanitizeLockedMotif
 } from './ai/prompt-utils';
 import { generateWithGroq, ProviderGenerationResult } from './ai/groq-client';
-import { evaluatePeptideFitness, evolvePeptideSequence } from './ai/mutation-optimizer';
+import {
+  evaluatePeptideFitness,
+  evolvePeptideSequence,
+  resolveLockedPositions
+} from './ai/mutation-optimizer';
 import { analyzeSynthesisFeasibility } from './ai/synthesis-feasibility';
 
 export type { RawAiPeptideOutput } from './ai/prompt-utils';
@@ -152,10 +157,58 @@ async function selectCandidateByProvider(
   };
 }
 
+const MAX_BATCH_PAIRWISE_IDENTITY = 0.82;
+
+/**
+ * Computes normalized positional sequence identity (0.0 - 1.0) between two sequences
+ * to prevent near-duplicate variants from crowding multi-candidate batch screening.
+ */
+export function computeSequenceIdentity(seqA: string, seqB: string): number {
+  const maxLen = Math.max(seqA.length, seqB.length);
+  if (maxLen === 0) return 1;
+  const minLen = Math.min(seqA.length, seqB.length);
+  let matches = 0;
+  for (let i = 0; i < minLen; i++) {
+    if (seqA[i] === seqB[i]) matches++;
+  }
+  return parseFloat((matches / maxLen).toFixed(3));
+}
+
+function selectDiverseBatchCandidates(
+  rankedCandidates: SynthesizedPeptideResult[],
+  boundedMax: number
+): SynthesizedPeptideResult[] {
+  const selected: SynthesizedPeptideResult[] = [];
+  const deferred: SynthesizedPeptideResult[] = [];
+
+  for (const candidate of rankedCandidates) {
+    const tooSimilar = selected.some(
+      (picked) =>
+        computeSequenceIdentity(picked.output.sequence, candidate.output.sequence) >
+        MAX_BATCH_PAIRWISE_IDENTITY
+    );
+
+    if (!tooSimilar) {
+      selected.push(candidate);
+      if (selected.length >= boundedMax) break;
+    } else {
+      deferred.push(candidate);
+    }
+  }
+
+  for (const backup of deferred) {
+    if (selected.length >= boundedMax) break;
+    selected.push(backup);
+  }
+
+  return selected;
+}
+
 function applyClosedLoopRefinement(
   selected: ProviderGenerationResult,
   pathogen: PathogenProfile,
-  enabled: boolean
+  enabled: boolean,
+  lockedMotif?: string
 ): SynthesizedPeptideResult {
   if (!enabled) {
     return selected;
@@ -176,7 +229,8 @@ function applyClosedLoopRefinement(
     return selected;
   }
 
-  const trajectory = evolvePeptideSequence(selected.output.sequence, pathogen, 2);
+  const lockedPositions = resolveLockedPositions(selected.output.sequence, undefined, lockedMotif);
+  const trajectory = evolvePeptideSequence(selected.output.sequence, pathogen, 2, lockedPositions);
   if (trajectory.appliedMutations.length === 0 || trajectory.finalFitness <= trajectory.initialFitness) {
     return selected;
   }
@@ -210,11 +264,11 @@ export async function synthesizePeptideWithAI(
   params: PeptideDesignParams
 ): Promise<SynthesizedPeptideResult> {
   const selected = await selectCandidateByProvider(pathogen, params);
-  return applyClosedLoopRefinement(selected, pathogen, params.autoOptimize !== false);
+  return applyClosedLoopRefinement(selected, pathogen, params.autoOptimize !== false, params.lockedMotif);
 }
 
 /**
- * Generates and ranks multiple distinct candidate peptides across active AI engines
+ * Generates and ranks multiple distinct, sequence-diverse candidate peptides across active AI engines
  * plus directed-evolution optimization so callers can inspect trade-offs side by side.
  */
 export async function synthesizeBatchWithAI(
@@ -252,7 +306,7 @@ export async function synthesizeBatchWithAI(
   for (const rawItem of rawPool) {
     register(rawItem);
     if (params.autoOptimize !== false) {
-      const refined = applyClosedLoopRefinement(rawItem, pathogen, true);
+      const refined = applyClosedLoopRefinement(rawItem, pathogen, true, params.lockedMotif);
       if (refined.optimizationSummary?.applied) {
         register({
           ...refined,
@@ -269,7 +323,8 @@ export async function synthesizeBatchWithAI(
   if (deduped.size < boundedMax && params.autoOptimize !== false) {
     const topSeed = Array.from(deduped.values())[0];
     if (topSeed) {
-      const traj = evolvePeptideSequence(topSeed.output.sequence, pathogen, 3);
+      const lockedPositions = resolveLockedPositions(topSeed.output.sequence, undefined, params.lockedMotif);
+      const traj = evolvePeptideSequence(topSeed.output.sequence, pathogen, 3, lockedPositions);
       if (traj.appliedMutations.length > 0 && !deduped.has(traj.finalSequence)) {
         const note = `Directed evolution applied ${traj.appliedMutations.join(', ')}: selectivity ${traj.initialMetrics.therapeuticSelectivityIndex} -> ${traj.finalMetrics.therapeuticSelectivityIndex}.`;
         register({
@@ -299,9 +354,8 @@ export async function synthesizeBatchWithAI(
     return fit + spps * 0.15;
   };
 
-  return Array.from(deduped.values())
-    .sort((a, b) => scoreItem(b) - scoreItem(a))
-    .slice(0, boundedMax);
+  const rankedPool = Array.from(deduped.values()).sort((a, b) => scoreItem(b) - scoreItem(a));
+  return selectDiverseBatchCandidates(rankedPool, boundedMax);
 }
 
 /**
@@ -317,7 +371,7 @@ export async function generatePeptideWithGemini(
 
 /**
  * Deterministic heuristic generator based on standard amphipathic motif (i, i+3, i+4)
- * Ensures 100% offline uptime and zero-crash guarantee.
+ * Ensures 100% offline uptime and preserves any requested scaffold motif.
  */
 export function generateHeuristicPeptide(
   pathogen: PathogenProfile,
@@ -325,15 +379,16 @@ export function generateHeuristicPeptide(
 ): RawAiPeptideOutput {
   const length = params.sequenceLength;
   const motif = ['K', 'W', 'K', 'L', 'F', 'K', 'K', 'I', 'V', 'K', 'L', 'L', 'K', 'S', 'K', 'K', 'V', 'L', 'K', 'R', 'A', 'K', 'I', 'L', 'K', 'Q', 'K', 'L'];
-  let seq = '';
-  for (let i = 0; i < length; i++) {
+  const lockedPrefix = sanitizeLockedMotif(params.lockedMotif, length) || '';
+  let seq = lockedPrefix;
+  for (let i = lockedPrefix.length; i < length; i++) {
     seq += motif[i % motif.length];
   }
 
   return {
     candidateName: `Synthia-${pathogen.id.toUpperCase()}-Opt${length}`,
     sequence: seq,
-    molecularRationale: `Generated using an optimized (i, i+3, i+4) amphipathic alpha-helical repeat. Alternating Lysine (K) residues align along the polar azimuth at 100-degree pitch intervals to destabilize ${pathogen.name} lipid packing while hydrophobic Leu/Ile/Trp residues insert into the hydrocarbon core.`,
+    molecularRationale: `Generated using an optimized (i, i+3, i+4) amphipathic alpha-helical repeat${lockedPrefix ? ` anchored around conserved motif ${lockedPrefix}` : ''}. Alternating Lysine (K) residues align along the polar azimuth at 100-degree pitch intervals to destabilize ${pathogen.name} lipid packing while hydrophobic Leu/Ile/Trp residues insert into the hydrocarbon core.`,
     membraneAffinityExplanation: `Targets the ${pathogen.membraneCharacteristics.outerMembraneCharge} mV outer potential of ${pathogen.scientificName} via high polycationic field density, initiating lipid headgroup displacement.`
   };
 }

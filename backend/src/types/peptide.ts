@@ -30,6 +30,7 @@ export interface PeptideDesignParams {
   safetyThreshold: SafetyThreshold;
   provider?: AIProviderPreference;
   autoOptimize?: boolean;
+  lockedMotif?: string;
 }
 
 export interface BiophysicalMetrics {
@@ -107,6 +108,30 @@ export interface ChargePhCurve {
   isoelectricPoint: number;
 }
 
+export type InSilicoGateId =
+  | 'CHARGE_TARGET'
+  | 'HEMOLYSIS_SAFETY'
+  | 'AMPHIPATHIC_PARTITION'
+  | 'PROTEASE_RESILIENCE'
+  | 'SPPS_MANUFACTURABILITY';
+
+export interface InSilicoGateResult {
+  id: InSilicoGateId;
+  label: string;
+  passed: boolean;
+  observed: string;
+  threshold: string;
+}
+
+export interface InSilicoGateSummary {
+  overallStatus: 'PASS' | 'REVIEW' | 'FAIL';
+  passedCount: number;
+  totalGates: number;
+  passRate: number; // 0.0 - 1.0
+  rewardScore: number; // 0 - 100 weighted multi-objective score
+  gates: InSilicoGateResult[];
+}
+
 export interface GeneratedPeptide {
   id: string;
   name: string;
@@ -120,9 +145,11 @@ export interface GeneratedPeptide {
   aiModelUsed?: string;
   optimizationSummary?: ClosedLoopOptimizationSummary;
   synthesisFeasibility?: SynthesisFeasibilityReport;
+  inSilicoGates?: InSilicoGateSummary;
   metrics: BiophysicalMetrics;
   aminoAcidProfile: AminoAcidCount[];
   pdbContent: string; // Valid 3D atomic coordinates in PDB format
+  cifContent?: string; // Modern PDBx/mmCIF atomic coordinate representation
   fastaContent: string;
   synthesisProtocol: SynthesisProtocol;
   createdAt: string;
@@ -136,6 +163,7 @@ export interface GeneratePeptideRequest {
   customPathogenName?: string;
   provider?: AIProviderPreference;
   autoOptimize?: boolean;
+  lockedMotif?: string;
 }
 
 export interface GeneratePeptideResponse {

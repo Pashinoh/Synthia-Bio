@@ -26,6 +26,7 @@ export interface EvolutionTrajectory {
   originalSequence: string;
   finalSequence: string;
   roundsExecuted: number;
+  lockedPositions?: number[];
   initialMetrics: BiophysicalMetrics;
   finalMetrics: BiophysicalMetrics;
   initialProtease: ProteaseStabilityReport;
@@ -62,6 +63,45 @@ const HEMOLYSIS_RANK: Record<HemolysisRisk, number> = {
 
 export function sanitizePeptideSequence(sequence: string): string {
   return sequence.toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
+}
+
+/**
+ * Resolves 1-indexed scaffold lock positions from explicit position numbers
+ * and/or a conserved active motif substring (motif scaffolding).
+ */
+export function resolveLockedPositions(
+  sequence: string,
+  lockedPositions?: number[],
+  lockedMotif?: string
+): number[] {
+  const cleanSeq = sanitizePeptideSequence(sequence);
+  const locked = new Set<number>();
+
+  if (Array.isArray(lockedPositions)) {
+    for (const rawPos of lockedPositions) {
+      const pos = Math.round(Number(rawPos));
+      if (Number.isFinite(pos) && pos >= 1 && pos <= cleanSeq.length) {
+        locked.add(pos);
+      }
+    }
+  }
+
+  if (typeof lockedMotif === 'string' && lockedMotif.trim()) {
+    const cleanMotif = sanitizePeptideSequence(lockedMotif);
+    if (cleanMotif.length >= 2 && cleanMotif.length < cleanSeq.length) {
+      let startIdx = 0;
+      while (startIdx <= cleanSeq.length - cleanMotif.length) {
+        const matchIdx = cleanSeq.indexOf(cleanMotif, startIdx);
+        if (matchIdx === -1) break;
+        for (let offset = 0; offset < cleanMotif.length; offset++) {
+          locked.add(matchIdx + offset + 1);
+        }
+        startIdx = matchIdx + 1;
+      }
+    }
+  }
+
+  return Array.from(locked).sort((a, b) => a - b);
 }
 
 /**
@@ -131,12 +171,14 @@ export function evaluatePeptideFitness(
 function collectSingleStepMutations(
   cleanSeq: string,
   baseEval: PeptideFitnessEvaluation,
-  pathogen?: PathogenProfile
+  pathogen?: PathogenProfile,
+  lockedSet?: Set<number>
 ): MutationCandidate[] {
   const candidates: MutationCandidate[] = [];
   const baseHemolysis = HEMOLYSIS_RANK[baseEval.metrics.predictedHemolysisRisk];
 
   for (let i = 0; i < cleanSeq.length; i++) {
+    if (lockedSet?.has(i + 1)) continue;
     const orig = cleanSeq[i];
     for (const sub of SUBSTITUTION_POOL) {
       if (orig === sub.aa) continue;
@@ -191,42 +233,48 @@ function collectSingleStepMutations(
  */
 export function scanBeneficialMutations(
   sequence: string,
-  pathogen?: PathogenProfile
+  pathogen?: PathogenProfile,
+  lockedPositions?: number[]
 ): MutationCandidate[] {
   const cleanSeq = sanitizePeptideSequence(sequence);
   if (!cleanSeq) {
     throw new Error('Sequence must contain at least one valid amino acid residue');
   }
 
+  const normalizedLocks = resolveLockedPositions(cleanSeq, lockedPositions);
+  const lockedSet = new Set(normalizedLocks);
   const baseEval = evaluatePeptideFitness(cleanSeq, pathogen);
-  return collectSingleStepMutations(cleanSeq, baseEval, pathogen).slice(0, 5);
+  return collectSingleStepMutations(cleanSeq, baseEval, pathogen, lockedSet).slice(0, 5);
 }
 
 /**
  * Multi-round in-silico directed evolution (beam depth 1 greedy hill-climbing with safety locks).
  * Iteratively applies non-redundant residue substitutions up to `maxRounds`
- * until biophysical selectivity, hemolysis safety, and pathogen charge targets converge.
+ * while preserving any motif-scaffold `lockedPositions`.
  */
 export function evolvePeptideSequence(
   sequence: string,
   pathogen?: PathogenProfile,
-  maxRounds = 3
+  maxRounds = 3,
+  lockedPositions?: number[]
 ): EvolutionTrajectory {
   const cleanSeq = sanitizePeptideSequence(sequence);
   if (!cleanSeq) {
     throw new Error('Sequence must contain at least one valid amino acid residue');
   }
 
+  const normalizedLocks = resolveLockedPositions(cleanSeq, lockedPositions);
+  const lockedSet = new Set(normalizedLocks);
   const initialEval = evaluatePeptideFitness(cleanSeq, pathogen);
   let currentSeq = cleanSeq;
   let currentEval = initialEval;
-  const mutatedPositions = new Set<number>();
+  const mutatedPositions = new Set<number>(normalizedLocks);
   const steps: MutationCandidate[] = [];
 
   const boundedRounds = Math.max(1, Math.min(5, maxRounds));
 
   for (let round = 0; round < boundedRounds; round++) {
-    const candidates = collectSingleStepMutations(currentSeq, currentEval, pathogen).filter(
+    const candidates = collectSingleStepMutations(currentSeq, currentEval, pathogen, lockedSet).filter(
       (c) => !mutatedPositions.has(c.position)
     );
 
@@ -245,6 +293,7 @@ export function evolvePeptideSequence(
     originalSequence: cleanSeq,
     finalSequence: currentSeq,
     roundsExecuted: steps.length,
+    ...(normalizedLocks.length > 0 ? { lockedPositions: normalizedLocks } : {}),
     initialMetrics: initialEval.metrics,
     finalMetrics: currentEval.metrics,
     initialProtease: initialEval.protease,

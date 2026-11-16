@@ -1,104 +1,86 @@
 'use client';
 
 import React from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  Line
-} from 'recharts';
 import { AminoAcidCount } from '@/types/peptide';
-import { Dna } from 'lucide-react';
 
 interface ProfileProps {
   profile: AminoAcidCount[];
-  benchmarkProfile?: AminoAcidCount[];
 }
 
-export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile, benchmarkProfile }) => {
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'positive':
-        return '#00F0FF'; // Cyan for Lys/Arg
-      case 'hydrophobic':
-        return '#F59E0B'; // Amber for Leu/Ile/Val/Trp
-      case 'negative':
-        return '#EF4444'; // Red for Asp/Glu
-      case 'hydrophilic':
-        return '#3B82F6'; // Blue
-      default:
-        return '#94A3B8'; // Slate for neutral
-    }
-  };
+type Bucket = { key: string; label: string; tone: string; count: number; codes: string[] };
 
-  const benchmarkMap = new Map<string, number>();
-  benchmarkProfile?.forEach((row) => {
-    benchmarkMap.set(row.code, row.count);
+export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile }) => {
+  const buckets: Bucket[] = [
+    { key: 'cationic', label: 'Cationic', tone: 'bg-accent', count: 0, codes: [] },
+    { key: 'hydrophobic', label: 'Hydrophobic', tone: 'bg-ink', count: 0, codes: [] },
+    { key: 'neutral', label: 'Neutral / anionic', tone: 'bg-line-2', count: 0, codes: [] }
+  ];
+
+  profile.forEach((row) => {
+    const bucket =
+      row.category === 'positive'
+        ? buckets[0]
+        : row.category === 'hydrophobic'
+          ? buckets[1]
+          : buckets[2];
+    bucket.count += row.count;
+    if (row.count > 0) bucket.codes.push(`${row.code}${row.count > 1 ? `×${row.count}` : ''}`);
   });
 
+  const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0) || 1;
+
   return (
-    <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl flex flex-col justify-between">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Dna className="w-4 h-4 text-cyan-400" />
-          <h3 className="text-sm font-semibold text-slate-200">Residue Composition</h3>
-        </div>
-        <div className="flex items-center gap-2 text-[10px] font-mono">
-          <span className="flex items-center gap-1 text-cyan-300">
-            <span className="w-2 h-2 rounded-full bg-cyan-400" /> Cationic (+)
-          </span>
-          <span className="flex items-center gap-1 text-amber-300">
-            <span className="w-2 h-2 rounded-full bg-amber-400" /> Hydrophobic
-          </span>
-        </div>
+    <section className="flex flex-col bg-surface p-5">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
+          Residue composition
+        </h3>
+        <span className="font-mono text-[10px] text-ink-3">{total} residues</span>
       </div>
 
-      <div className="w-full h-[180px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={profile} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <XAxis dataKey="code" tick={{ fill: '#CBD5E1', fontSize: 11, fontFamily: 'monospace' }} />
-            <YAxis tick={{ fill: '#64748B', fontSize: 10 }} allowDecimals={false} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const item = payload[0].payload as AminoAcidCount;
-                  return (
-                    <div className="bg-slate-950/95 border border-slate-700 p-2.5 rounded-xl shadow-xl text-xs font-mono">
-                      <p className="font-bold text-cyan-300">{item.name} ({item.code})</p>
-                      <p className="text-slate-200">Count: {item.count} ({item.percentage}%)</p>
-                      <p className="text-slate-400 text-[10px] capitalize">Class: {item.category}</p>
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-              {profile.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={getCategoryColor(entry.category)} />
-              ))}
-            </Bar>
-            {benchmarkProfile && (
-              <Line
-                type="monotone"
-                data={profile.map((p) => ({ code: p.code, count: benchmarkMap.get(p.code) ?? 0 }))}
-                dataKey="count"
-                stroke="#EF4444"
-                strokeWidth={2}
-                dot={false}
+      {/* Stacked distribution */}
+      <div className="flex gap-0.5" role="img" aria-label="Residue class distribution">
+        {buckets
+          .filter((bucket) => bucket.count > 0)
+          .map((bucket) => {
+            const pct = Math.round((bucket.count / total) * 100);
+            return (
+              <div
+                key={bucket.key}
+                title={`${bucket.label}: ${bucket.count} (${pct}%)`}
+                className={`h-2 ${bucket.tone}`}
+                style={{ width: `${(bucket.count / total) * 100}%` }}
               />
-            )}
-          </BarChart>
-        </ResponsiveContainer>
+            );
+          })}
       </div>
 
-      <p className="text-[11px] text-slate-400 text-center mt-1 font-mono">
-        Amphipathic balance: Polycationic facial residues for membrane binding
+      {/* Legend */}
+      <ul className="mt-4 flex-1 space-y-2.5">
+        {buckets.map((bucket) => {
+          const pct = Math.round((bucket.count / total) * 100);
+          return (
+            <li key={bucket.key} className="flex items-start gap-2.5">
+              <span className={`mt-1 h-2 w-2 shrink-0 ${bucket.tone}`} aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[12px] font-medium text-ink">{bucket.label}</span>
+                  <span className="font-mono text-[10px] tabular-nums text-ink-2">
+                    {bucket.count} · {pct}%
+                  </span>
+                </div>
+                <p className="truncate font-mono text-[10px] text-ink-3">
+                  {bucket.codes.length > 0 ? bucket.codes.join(' ') : '—'}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="mt-3 border-t border-line pt-3 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+        Cationic : hydrophobic {buckets[0].count} : {buckets[1].count}
       </p>
-    </div>
+    </section>
   );
 };

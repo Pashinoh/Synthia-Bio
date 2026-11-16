@@ -7,84 +7,111 @@ interface ProteaseShieldPanelProps {
   report: ProteaseStabilityReport | null;
 }
 
-const enzymeColor: Record<string, string> = {
-  Trypsin: '#EF4444',
-  Chymotrypsin: '#F59E0B',
-  Elastase: '#10B981'
+const enzymeTone: Record<string, string> = {
+  Trypsin: 'text-danger bg-danger-soft',
+  Chymotrypsin: 'text-warn bg-warn-soft',
+  Elastase: 'text-ink-2 bg-sunken'
 };
 
 export const ProteaseShieldPanel: React.FC<ProteaseShieldPanelProps> = ({ report }) => {
   if (!report) {
     return (
-      <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl flex flex-col items-center justify-center h-64">
-        <p className="text-xs text-slate-500 font-mono">Validate a peptide to view protease shield</p>
-      </div>
+      <section className="flex h-64 flex-col bg-surface p-5">
+        <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
+          Protease shield
+        </h3>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="font-mono text-[11px] text-ink-3">Run stability validation</p>
+        </div>
+      </section>
     );
   }
 
   return (
-    <div className="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-xl flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-200 font-mono">Protease Stability Shield</h3>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300">
-          Score: {report.stabilityScore}
+    <section className="bg-surface">
+      <div className="flex items-baseline justify-between gap-3 p-5 pb-4">
+        <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
+          Protease shield
+        </h3>
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+          Serum stability
         </span>
       </div>
 
-      {/* Metrics row */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-          <div className="text-[10px] text-slate-400 font-mono mb-1">Stability Score</div>
-          <div className="text-lg font-bold font-mono text-emerald-400">{report.stabilityScore}</div>
-          <div className="text-[10px] text-slate-500 mt-1">0 – 100 scale</div>
+      <div className="grid grid-cols-2 gap-px bg-line">
+        <div className="bg-sunken px-5 py-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+            Stability score
+          </span>
+          <p className="mt-1 font-mono text-[26px] leading-none tabular-nums text-ink">
+            {report.stabilityScore}
+            <span className="ml-1 text-[11px] text-ink-3">/100</span>
+          </p>
         </div>
-        <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-          <div className="text-[10px] text-slate-400 font-mono mb-1">Est. Half-Life</div>
-          <div className="text-lg font-bold font-mono text-cyan-400">{report.estimatedHalfLifeMinutes} min</div>
-          <div className="text-[10px] text-slate-500 mt-1">Serum stability estimate</div>
+        <div className="bg-sunken px-5 py-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+            Est. half-life
+          </span>
+          <p className="mt-1 font-mono text-[26px] leading-none tabular-nums text-ink">
+            {report.estimatedHalfLifeMinutes}
+            <span className="ml-1 text-[11px] text-ink-3">min</span>
+          </p>
         </div>
       </div>
 
-      {/* Cleavage sites */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
-            Cleavage Sites ({report.cleavageSites.length})
+      <div className="p-5">
+        <div className="mb-2 flex items-baseline justify-between">
+          <h4 className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+            Cleavage sites
           </h4>
+          <span className="font-mono text-[10px] tabular-nums text-ink-3">
+            {report.cleavageSites.length}
+          </span>
         </div>
+
         {report.cleavageSites.length === 0 ? (
-          <p className="text-[10px] text-slate-500 font-mono italic">No cleavage sites detected</p>
+          <p className="font-mono text-[11px] text-ink-3">No cleavage sites detected</p>
         ) : (
-          <div className="space-y-1">
+          <ul className="border-t border-line">
             {report.cleavageSites.map((site, i) => (
-              <div key={i} className="flex items-center justify-between p-2 rounded bg-slate-950/50 border border-slate-800/50">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono text-[10px]`} style={{ backgroundColor: enzymeColor[site.enzyme] + '20', color: enzymeColor[site.enzyme], border: '1px solid ' + enzymeColor[site.enzyme] + '40' }}>
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 border-b border-line py-2"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={`px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] ${
+                      enzymeTone[site.enzyme] ?? 'bg-sunken text-ink-2'
+                    }`}
+                  >
                     {site.enzyme}
                   </span>
-                  <span className="text-[10px] text-slate-300 font-mono">{site.motif}</span>
-                </div>
-                <span className="text-[9px] text-slate-500 font-mono">Pos {site.position}</span>
-              </div>
+                  <span className="truncate font-mono text-[11px] text-ink">{site.motif}</span>
+                </span>
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-ink-3">
+                  pos {site.position}
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
 
-      {/* Stabilization strategies */}
-      <div>
-        <h4 className="text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider mb-2">
-          Stabilization Strategies
+      <div className="px-5 pb-5">
+        <h4 className="mb-2 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+          Stabilization strategies
         </h4>
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {report.stabilizationStrategies.map((strategy, i) => (
-            <li key={i} className="flex items-start gap-2 p-2 rounded bg-slate-950/50 border border-slate-800/50">
-              <span className="text-[9px] text-emerald-400 shrink-0">▸</span>
-              <p className="text-[10px] text-slate-300 leading-relaxed">{strategy}</p>
+            <li key={i} className="flex gap-3 border-l-2 border-line-2 pl-3">
+              <span className="font-mono text-[10px] tabular-nums text-ink-3">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <p className="text-[11px] leading-relaxed text-ink-2">{strategy}</p>
             </li>
           ))}
         </ul>
       </div>
-    </div>
+    </section>
   );
 };

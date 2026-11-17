@@ -2,7 +2,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { usePeptideStore } from '@/store/usePeptideStore';
-import { ChevronDown, Check, Copy, Download, FileText, ShieldAlert } from 'lucide-react';
+import {
+  ChevronDown,
+  Check,
+  Copy,
+  Download,
+  FileText,
+  ShieldAlert,
+  Sparkles
+} from 'lucide-react';
 import { AMINO_ACID_TABLE } from '@/lib/bio-engine/eisenberg-scale';
 
 interface CardProps {
@@ -17,8 +25,33 @@ const residueTone = (residue: string) => {
   return 'text-ink-3';
 };
 
+const gateStatusTone = {
+  PASS: 'bg-accent-soft text-accent',
+  REVIEW: 'bg-warn-soft text-warn',
+  FAIL: 'bg-danger-soft text-danger'
+} as const;
+
+function triggerDownload(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
-  const { currentPeptide, validateStability, isLoading, generation } = usePeptideStore();
+  const {
+    currentPeptide,
+    validateStability,
+    optimizeCurrentPeptide,
+    isLoading,
+    activeOperation,
+    generation
+  } = usePeptideStore();
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -49,39 +82,42 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
 
   if (!currentPeptide) return null;
 
-  const closeMenu = () => {
+  const baseSlug = currentPeptide.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const gates = currentPeptide.inSilicoGates;
+
+  const handleExportAction = async (action: 'fasta' | 'pdb' | 'cif' | 'sheet') => {
+    if (action === 'fasta') {
+      try {
+        await navigator.clipboard.writeText(currentPeptide.fastaContent);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // clipboard unavailable
+      }
+    } else if (action === 'pdb') {
+      triggerDownload(currentPeptide.pdbContent, `${baseSlug}.pdb`, 'chemical/x-pdb');
+    } else if (action === 'cif' && currentPeptide.cifContent) {
+      triggerDownload(currentPeptide.cifContent, `${baseSlug}.cif`, 'chemical/x-mmcif');
+    } else if (action === 'sheet') {
+      onOpenProtocol();
+    }
     setMenuOpen(false);
     buttonRef.current?.focus();
   };
 
-  const handleCopyFasta = async () => {
-    try {
-      await navigator.clipboard.writeText(currentPeptide.fastaContent);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard unavailable (insecure context) — no-op
-    }
-    closeMenu();
-  };
-
-  const handleDownloadPdb = () => {
-    const blob = new Blob([currentPeptide.pdbContent], { type: 'chemical/x-pdb' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentPeptide.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.pdb`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    closeMenu();
-  };
-
-  const handleOpenProtocol = () => {
-    onOpenProtocol();
-    closeMenu();
-  };
+  const exportMenuItems: Array<{
+    action: 'fasta' | 'pdb' | 'cif' | 'sheet';
+    label: string;
+    hint: string;
+    icon: typeof Copy;
+  }> = [
+    { action: 'fasta', label: 'Copy FASTA', hint: '.fasta', icon: Copy },
+    { action: 'pdb', label: 'Download PDB', hint: '.pdb', icon: Download },
+    ...(currentPeptide.cifContent
+      ? [{ action: 'cif' as const, label: 'Download mmCIF', hint: '.cif', icon: Download }]
+      : []),
+    { action: 'sheet', label: 'Lab sheet', hint: 'print', icon: FileText }
+  ];
 
   return (
     <section className="bg-surface">
@@ -94,6 +130,11 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
             <span className="bg-sunken px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-2">
               Gen {String(generation).padStart(2, '0')}
             </span>
+            {currentPeptide.aiProviderUsed && (
+              <span className="bg-sunken px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-ink-3">
+                {currentPeptide.aiProviderUsed}
+              </span>
+            )}
             <span className="font-mono text-[10px] text-ink-3">{currentPeptide.length} aa</span>
           </div>
           <p className="mt-1 truncate text-[11px] text-ink-3">
@@ -125,16 +166,12 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
               aria-label="Export candidate"
               className="absolute right-0 top-full z-40 mt-1 w-56 border-t-2 border-accent bg-stage py-1"
             >
-              {[
-                { label: 'Copy FASTA', hint: '.fasta', icon: Copy, onSelect: handleCopyFasta },
-                { label: 'Download PDB', hint: '.pdb', icon: Download, onSelect: handleDownloadPdb },
-                { label: 'Lab sheet', hint: 'print', icon: FileText, onSelect: handleOpenProtocol }
-              ].map((item) => (
+              {exportMenuItems.map((item) => (
                 <button
-                  key={item.label}
+                  key={item.action}
                   role="menuitem"
                   type="button"
-                  onClick={() => void item.onSelect()}
+                  onClick={() => void handleExportAction(item.action)}
                   className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[12px] text-[#f4f4f4] hover:bg-[#262626] focus-visible:bg-[#262626] focus-visible:outline-none"
                 >
                   <item.icon className="h-3.5 w-3.5 shrink-0 text-[#a8a8a8]" aria-hidden />
@@ -172,6 +209,44 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
         </div>
       </div>
 
+      {/* In-Silico Lab Gates Summary (from Backend RFD4-inspired evaluation) */}
+      {gates && (
+        <div className="mt-4 px-5">
+          <div className="flex items-center justify-between gap-2 bg-sunken px-3 py-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-2">
+              In-silico gates · {gates.passedCount}/{gates.totalGates}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] tabular-nums text-ink-3">
+                Reward {gates.rewardScore}
+              </span>
+              <span
+                className={`px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                  gateStatusTone[gates.overallStatus]
+                }`}
+              >
+                {gates.overallStatus}
+              </span>
+            </div>
+          </div>
+          <div className="mt-1 grid grid-cols-1 gap-1 border border-line bg-surface p-2">
+            {gates.gates.map((g) => (
+              <div key={g.id} className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="flex min-w-0 items-center gap-1.5 truncate text-ink-2">
+                  <span
+                    className={`font-mono font-bold ${g.passed ? 'text-accent' : 'text-danger'}`}
+                  >
+                    {g.passed ? '✓' : '✕'}
+                  </span>
+                  <span className="truncate">{g.label}</span>
+                </span>
+                <span className="shrink-0 font-mono text-ink-3">{g.observed}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Rationale */}
       <div className="mt-4 space-y-2 px-5">
         <div className="bg-sunken px-3 py-2.5">
@@ -192,15 +267,25 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
         </div>
       </div>
 
-      <div className="p-5 pt-4">
+      <div className="grid grid-cols-2 gap-2 p-5 pt-4">
         <button
           type="button"
           onClick={() => void validateStability(currentPeptide.sequence)}
           disabled={isLoading}
-          className="flex h-10 w-full items-center justify-center gap-2 border border-line-2 text-[11px] font-medium text-ink transition-colors hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-10 items-center justify-center gap-1.5 border border-line-2 px-2 text-[11px] font-medium text-ink transition-colors hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
-          {isLoading ? 'Validating stability…' : 'Validate stability'}
+          <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>{isLoading && activeOperation === 'validate' ? 'Validating…' : 'Stability'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void optimizeCurrentPeptide(3)}
+          disabled={isLoading}
+          className="flex h-10 items-center justify-center gap-1.5 border border-line-2 px-2 text-[11px] font-medium text-ink transition-colors hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+          <span>{isLoading && activeOperation === 'optimize' ? 'Optimizing…' : 'Optimize'}</span>
         </button>
       </div>
     </section>

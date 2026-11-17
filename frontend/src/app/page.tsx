@@ -6,6 +6,9 @@ import { PathogenSelector } from '@/components/dashboard/PathogenSelector';
 import { ParameterControls } from '@/components/dashboard/ParameterControls';
 import { SequenceCard } from '@/components/dashboard/SequenceCard';
 import { ProteaseShieldPanel } from '@/components/dashboard/ProteaseShieldPanel';
+import { BatchCandidatesPanel } from '@/components/dashboard/BatchCandidatesPanel';
+import { OptimizationPanel } from '@/components/dashboard/OptimizationPanel';
+import { ClinicalBenchmarkPanel } from '@/components/dashboard/ClinicalBenchmarkPanel';
 import { MoleculeViewer } from '@/components/canvas3d/MoleculeViewer';
 import { BiophysicalRadar } from '@/components/charts/BiophysicalRadar';
 import { AminoAcidProfile } from '@/components/charts/AminoAcidProfile';
@@ -15,7 +18,20 @@ import { SynthesisModal } from '@/components/export/SynthesisModal';
 import { usePeptideStore } from '@/store/usePeptideStore';
 
 export default function Home() {
-  const { currentPeptide, error, proteaseReport, helicalWheel, chargePhCurve } = usePeptideStore();
+  const {
+    currentPeptide,
+    batchCandidates,
+    error,
+    isLoading,
+    proteaseReport,
+    helicalWheel,
+    chargePhCurve,
+    optimizationResult,
+    benchmarkReport,
+    selectBatchCandidate,
+    applyOptimizedSequence,
+    compareBenchmarks
+  } = usePeptideStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
@@ -72,6 +88,32 @@ export default function Home() {
             )}
 
             {currentPeptide && proteaseReport && <ProteaseShieldPanel report={proteaseReport} />}
+
+            {currentPeptide && batchCandidates.length > 0 && (
+              <BatchCandidatesPanel
+                candidates={batchCandidates}
+                activeSequence={currentPeptide.sequence}
+                onSelect={selectBatchCandidate}
+              />
+            )}
+
+            {currentPeptide && optimizationResult && (
+              <OptimizationPanel
+                result={optimizationResult}
+                activeSequence={currentPeptide.sequence}
+                onApplyEvolved={applyOptimizedSequence}
+              />
+            )}
+
+            {currentPeptide && (
+              <ClinicalBenchmarkPanel
+                report={benchmarkReport}
+                activeSequence={currentPeptide.sequence}
+                activeName={currentPeptide.name}
+                isLoading={isLoading}
+                onRunCompare={(seq, name) => void compareBenchmarks(seq, name)}
+              />
+            )}
           </div>
         </div>
       </main>
@@ -85,7 +127,7 @@ export default function Home() {
       <footer className="mt-6 border-t border-line">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center gap-4 px-5 py-6 sm:px-8">
           <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
-            SynthiaBio © 2024. All rights reserved.
+            SynthiaBio © 2026. All rights reserved.
           </p>
           <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
             Open source

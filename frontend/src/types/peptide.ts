@@ -3,6 +3,9 @@ export type SafetyThreshold = 'high-selectivity' | 'balanced';
 export type HemolysisRisk = 'Low' | 'Moderate' | 'High';
 export type GramType = 'positive' | 'negative';
 export type WHOPriority = 'Critical' | 'High' | 'Medium';
+export type AIProviderPreference = 'auto' | 'gemini' | 'groq' | 'dual';
+export type GenerationSource = 'gemini' | 'groq' | 'heuristic';
+export type GenerationMode = 'single' | 'batch';
 
 export interface PathogenProfile {
   id: string;
@@ -26,6 +29,9 @@ export interface PeptideDesignParams {
   sequenceLength: number; // 12 - 28
   poreMechanism: PoreMechanism;
   safetyThreshold: SafetyThreshold;
+  provider?: AIProviderPreference;
+  autoOptimize?: boolean;
+  lockedMotif?: string;
 }
 
 export interface BiophysicalMetrics {
@@ -101,6 +107,31 @@ export interface SynthesisFeasibility {
   recommendedMitigations: string[];
 }
 
+// [Phase 2] Deterministic In-Silico Pass/Fail Lab Readiness Gates
+export type InSilicoGateId =
+  | 'CHARGE_TARGET'
+  | 'HEMOLYSIS_SAFETY'
+  | 'AMPHIPATHIC_PARTITION'
+  | 'PROTEASE_RESILIENCE'
+  | 'SPPS_MANUFACTURABILITY';
+
+export interface InSilicoGateResult {
+  id: InSilicoGateId;
+  label: string;
+  passed: boolean;
+  observed: string;
+  threshold: string;
+}
+
+export interface InSilicoGateSummary {
+  overallStatus: 'PASS' | 'REVIEW' | 'FAIL';
+  passedCount: number;
+  totalGates: number;
+  passRate: number;
+  rewardScore: number;
+  gates: InSilicoGateResult[];
+}
+
 export interface AminoAcidCount {
   code: string;
   name: string;
@@ -110,35 +141,37 @@ export interface AminoAcidCount {
 }
 
 export interface SynthesisProtocol {
-  nTerminalModification: string; // e.g. "Free amine (unblocked)"
-  cTerminalModification: string; // e.g. "C-terminal amidation (-CONH2) recommended for in vivo stability"
-  recommendedMethod: string; // e.g. "Solid-Phase Peptide Synthesis (Fmoc-SPPS)"
-  purificationTechnique: string; // e.g. "Reverse-Phase HPLC (RP-HPLC) >95% purity"
-  storageCondition: string; // e.g. "Lyophilized powder at -20°C"
+  nTerminalModification: string;
+  cTerminalModification: string;
+  recommendedMethod: string;
+  purificationTechnique: string;
+  storageCondition: string;
 }
 
 export interface GeneratedPeptide {
   id: string;
   name: string;
-  sequence: string; // One-letter code, e.g. "KWKLFKKIEKVGQNVRDG"
+  sequence: string;
   length: number;
   targetPathogen: string;
   mechanism: PoreMechanism;
   molecularRationale: string;
   membraneAffinityExplanation: string;
-  aiProviderUsed?: 'gemini' | 'groq' | 'heuristic';
+  aiProviderUsed?: GenerationSource;
   aiModelUsed?: string;
   optimizationSummary?: {
     applied: boolean;
     originalSequence: string;
     originalSelectivity: number;
-    originalHemolysisRisk: 'Low' | 'Moderate' | 'High';
+    originalHemolysisRisk: HemolysisRisk;
     appliedMutations: string[];
     notes: string;
   };
+  inSilicoGates?: InSilicoGateSummary;
   metrics: BiophysicalMetrics;
   aminoAcidProfile: AminoAcidCount[];
-  pdbContent: string; // Valid 3D atomic coordinates in PDB format
+  pdbContent: string;
+  cifContent?: string;
   fastaContent: string;
   synthesisProtocol: SynthesisProtocol;
   synthesisFeasibility?: SynthesisFeasibility;
@@ -151,8 +184,9 @@ export interface GeneratePeptideRequest {
   poreMechanism: PoreMechanism;
   safetyThreshold: SafetyThreshold;
   customPathogenName?: string;
-  provider?: 'auto' | 'gemini' | 'groq' | 'dual';
+  provider?: AIProviderPreference;
   autoOptimize?: boolean;
+  lockedMotif?: string;
 }
 
 export interface GeneratePeptideResponse {
@@ -160,4 +194,94 @@ export interface GeneratePeptideResponse {
   peptide?: GeneratedPeptide;
   error?: string;
   isMockFallback?: boolean;
+}
+
+export interface ScreenedPeptideCandidate {
+  rank: number;
+  compositeFitness: number;
+  proteaseStabilityScore: number;
+  estimatedHalfLifeMinutes: number;
+  selectivityVsPexiganan: number | null;
+  selectivityVsMelittin: number | null;
+  tradeoffSummary: string;
+  peptide: GeneratedPeptide;
+}
+
+export interface GenerateBatchResponse {
+  success: boolean;
+  targetPathogen: string;
+  candidateCount: number;
+  bestCandidate?: ScreenedPeptideCandidate;
+  candidates: ScreenedPeptideCandidate[];
+  error?: string;
+  isMockFallback?: boolean;
+}
+
+export interface MutationCandidate {
+  position: number;
+  originalResidue: string;
+  mutatedResidue: string;
+  mutationCode: string;
+  mutatedSequence: string;
+  metrics: BiophysicalMetrics;
+  proteaseStabilityScore: number;
+  improvementDelta: number;
+  compositeScoreDelta: number;
+  rationale: string;
+}
+
+export interface EvolutionTrajectory {
+  originalSequence: string;
+  finalSequence: string;
+  roundsExecuted: number;
+  lockedPositions?: number[];
+  initialMetrics: BiophysicalMetrics;
+  finalMetrics: BiophysicalMetrics;
+  initialProtease: ProteaseStabilityReport;
+  finalProtease: ProteaseStabilityReport;
+  initialFitness: number;
+  finalFitness: number;
+  appliedMutations: string[];
+  steps: MutationCandidate[];
+}
+
+export interface OptimizePeptideResponse {
+  success: boolean;
+  originalSequence: string;
+  targetPathogenId: string | null;
+  lockedPositions?: number[];
+  baseMetrics: BiophysicalMetrics;
+  recommendedMutations: MutationCandidate[];
+  evolutionTrajectory: EvolutionTrajectory;
+  error?: string;
+}
+
+export interface BenchmarkComparisonItem {
+  referenceId: string;
+  referenceName: string;
+  referenceStatus: string;
+  referenceMetrics: BiophysicalMetrics;
+  referenceProteaseScore: number;
+  selectivityDelta: number;
+  hydrophobicityDelta: number;
+  hydrophobicMomentDelta: number;
+  proteaseStabilityDelta: number;
+  lengthDelta: number;
+  hemolysisComparison: string;
+}
+
+export interface BenchmarkComparisonReport {
+  candidateName: string;
+  sequence: string;
+  length: number;
+  candidateMetrics: BiophysicalMetrics;
+  candidateProteaseScore: number;
+  comparisons: BenchmarkComparisonItem[];
+  overallVerdict: string;
+}
+
+export interface CompareBenchmarksResponse {
+  success: boolean;
+  report: BenchmarkComparisonReport;
+  error?: string;
 }

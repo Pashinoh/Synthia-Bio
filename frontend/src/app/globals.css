@@ -1,31 +1,94 @@
 @import "tailwindcss";
 
+:root {
+  --ground: #f4f4f4;
+  --surface: #ffffff;
+  --sunken: #f4f4f4;
+  --track: #e8e8e8;
+  --track-hover: #dcdcdc;
+
+  --ink: #161616;
+  --ink-2: #525252;
+  --ink-3: #6f6f6f;
+
+  --line: #e0e0e0;
+  --line-2: #c6c6c6;
+
+  --accent: #0f62fe;
+  --accent-btn: #0f62fe;
+  --accent-hover: #0043ce;
+  --accent-soft: #edf5ff;
+
+  --danger: #da1e28;
+  --danger-soft: #fff1f1;
+
+  --warn: #8e6a00;
+  --warn-soft: #fcf4d6;
+
+  --stage: #161616;
+  --selection-bg: #d0e2ff;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --ground: #161616;
+  --surface: #212124;
+  --sunken: #19191c;
+  --track: #2b2b30;
+  --track-hover: #38383e;
+
+  --ink: #f4f4f4;
+  --ink-2: #c6c6c6;
+  --ink-3: #9a9aa2;
+
+  --line: #34343a;
+  --line-2: #4f4f57;
+
+  --accent: #4589ff;
+  --accent-btn: #0f62fe;
+  --accent-hover: #0043ce;
+  --accent-soft: #1a2d4d;
+
+  --danger: #fa4d56;
+  --danger-soft: #3d181c;
+
+  --warn: #f1c21b;
+  --warn-soft: #332a0e;
+
+  --stage: #0d0d0f;
+  --selection-bg: #0043ce;
+  color-scheme: dark;
+}
+
 @theme inline {
   --font-sans: var(--font-ibm-plex-sans);
   --font-mono: var(--font-ibm-plex-mono);
 
-  --color-ground: #f4f4f4;
-  --color-surface: #ffffff;
-  --color-sunken: #f4f4f4;
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-track: var(--track);
+  --color-track-hover: var(--track-hover);
 
-  --color-ink: #161616;
-  --color-ink-2: #525252;
-  --color-ink-3: #6f6f6f;
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
 
-  --color-line: #e0e0e0;
-  --color-line-2: #c6c6c6;
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
 
-  --color-accent: #0f62fe;
-  --color-accent-hover: #0043ce;
-  --color-accent-soft: #edf5ff;
+  --color-accent: var(--accent);
+  --color-accent-btn: var(--accent-btn);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
 
-  --color-danger: #da1e28;
-  --color-danger-soft: #fff1f1;
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
 
-  --color-warn: #8e6a00;
-  --color-warn-soft: #fcf4d6;
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
 
-  --color-stage: #161616;
+  --color-stage: var(--stage);
 }
 
 html {
@@ -34,19 +97,19 @@ html {
 }
 
 body {
-  background: #f4f4f4;
-  color: #161616;
+  background: var(--ground);
+  color: var(--ink);
   font-family: var(--font-ibm-plex-sans), system-ui, sans-serif;
   font-feature-settings: "tnum" 1;
 }
 
 ::selection {
-  background: #d0e2ff;
-  color: #161616;
+  background: var(--selection-bg);
+  color: var(--ink);
 }
 
 :focus-visible {
-  outline: 2px solid #0f62fe;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -62,12 +125,12 @@ input[type="range"] {
 
 input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
-  background: #c6c6c6;
+  background: var(--line-2);
 }
 
 input[type="range"]::-moz-range-track {
   height: 2px;
-  background: #c6c6c6;
+  background: var(--line-2);
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -77,7 +140,7 @@ input[type="range"]::-webkit-slider-thumb {
   height: 14px;
   margin-top: -6px;
   border: 0;
-  background: #0f62fe;
+  background: var(--accent);
 }
 
 input[type="range"]::-moz-range-thumb {
@@ -85,7 +148,7 @@ input[type="range"]::-moz-range-thumb {
   height: 14px;
   border: 0;
   border-radius: 0;
-  background: #0f62fe;
+  background: var(--accent);
 }
 
 input[type="range"]:disabled {
@@ -93,19 +156,19 @@ input[type="range"]:disabled {
   cursor: not-allowed;
 }
 
-/* Dark scrollbars inside the stage and menus */
+/* Clean scrollbars inside studio panes and menus */
 .od-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #8d8d8d transparent;
+  scrollbar-color: var(--line-2) transparent;
 }
 
 .od-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .od-scroll::-webkit-scrollbar-thumb {
-  background: #8d8d8d;
+  background: var(--line-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -118,8 +181,53 @@ input[type="range"]:disabled {
   }
 }
 
+/* Printable lab-sheet typography: pure black Times New Roman on white paper */
+.pdf-sheet-typography,
+.pdf-sheet-typography * {
+  font-family: "Times New Roman", Times, serif;
+  color: #000000;
+}
+
+@page {
+  size: auto;
+  margin: 16mm;
+}
+
 @media print {
+  :root,
+  :root[data-theme="dark"] {
+    --ground: #ffffff;
+    --surface: #ffffff;
+    --sunken: #ffffff;
+    --track: #ffffff;
+    --ink: #000000;
+    --ink-2: #000000;
+    --ink-3: #000000;
+    --line: #404040;
+    --line-2: #000000;
+    --accent: #000000;
+    --warn: #000000;
+    --warn-soft: #ffffff;
+    color-scheme: light;
+  }
+
+  html,
   body {
-    background: #ffffff;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: "Times New Roman", Times, serif !important;
+    font-size: 11.5pt !important;
+    line-height: 1.5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body *,
+  [data-pdf-sheet],
+  [data-pdf-sheet] * {
+    font-family: "Times New Roman", Times, serif !important;
+    color: #000000 !important;
   }
 }

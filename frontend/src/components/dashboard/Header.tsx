@@ -1,28 +1,72 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Moon, Sun } from 'lucide-react';
+import { ThemeMode, usePeptideStore } from '@/store/usePeptideStore';
 
-export const Header: React.FC = () => {
+export const Header: React.FC = React.memo(() => {
+  const theme = usePeptideStore((s) => s.theme);
+  const setTheme = usePeptideStore((s) => s.setTheme);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('synthia-theme');
+    const prefersDark =
+      saved === 'dark' ||
+      (!saved && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+    const next: ThemeMode = prefersDark ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    queueMicrotask(() => setTheme(next));
+  }, [setTheme]);
+
+  const toggleTheme = () => {
+    const next: ThemeMode = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    window.localStorage.setItem('synthia-theme', next);
+  };
+
   return (
-    <header className="sticky top-0 z-50 bg-[#161616] border-b border-line">
-      <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-6 px-5 sm:px-8">
+    <header className="sticky top-0 z-50 shrink-0 border-b border-line bg-surface text-ink transition-colors">
+      <div className="mx-auto flex h-12 max-w-[1720px] items-center justify-between gap-6 px-3 sm:px-5">
         <div className="flex items-baseline gap-3">
-          <span className="text-[15px] font-semibold tracking-[-0.01em] text-[#f4f4f4]">SynthiaBio</span>
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[#a8a8a8] sm:inline">
+          <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+            SynthiaBio
+          </span>
+          <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-ink-3 sm:inline">
             v1.0 • de-novo
           </span>
         </div>
 
-        <div className="flex items-center gap-5 font-mono text-[10px] uppercase tracking-[0.12em] text-[#a8a8a8]">
+        <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-2">
           <span className="hidden items-center gap-2 md:flex">
             <span className="h-1.5 w-1.5 bg-accent" aria-hidden />
             <span>WHO Priority AMR Crisis Response</span>
           </span>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="flex h-7 items-center gap-1.5 border border-line bg-sunken px-2 text-ink transition-colors hover:bg-track-hover"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="h-3 w-3 text-[#f1c21b]" aria-hidden />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-3 w-3 text-ink-2" aria-hidden />
+                <span>Dark</span>
+              </>
+            )}
+          </button>
+
           <a
             href="https://github.com/Pashinoh/Synthia-Bio"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#f4f4f4] underline decoration-[#8d8d8d] underline-offset-4 transition-colors hover:decoration-[#f4f4f4]"
+            className="text-ink underline decoration-line-2 underline-offset-4 transition-colors hover:decoration-ink"
           >
             GitHub
           </a>
@@ -30,4 +74,6 @@ export const Header: React.FC = () => {
       </div>
     </header>
   );
-};
+});
+
+Header.displayName = 'Header';

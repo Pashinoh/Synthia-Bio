@@ -9,7 +9,7 @@ interface ProfileProps {
 
 type Bucket = { key: string; label: string; tone: string; count: number; codes: string[] };
 
-export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile }) => {
+export const AminoAcidProfile: React.FC<ProfileProps> = React.memo(({ profile }) => {
   const buckets: Bucket[] = [
     { key: 'cationic', label: 'Cationic', tone: 'bg-accent', count: 0, codes: [] },
     { key: 'hydrophobic', label: 'Hydrophobic', tone: 'bg-ink', count: 0, codes: [] },
@@ -83,4 +83,6 @@ export const AminoAcidProfile: React.FC<ProfileProps> = ({ profile }) => {
       </p>
     </section>
   );
-};
+});
+
+AminoAcidProfile.displayName = 'AminoAcidProfile';

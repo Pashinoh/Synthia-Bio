@@ -14,6 +14,21 @@ import { BiophysicalMetrics } from '@/types/peptide';
 
 interface RadarProps {
   metrics: BiophysicalMetrics;
+  previousMetrics?: BiophysicalMetrics | null;
+  previousName?: string | null;
+}
+
+function formatSignedDelta(delta: number, decimals = 0): string {
+  const formatted = decimals > 0 ? Math.abs(delta).toFixed(decimals) : String(Math.round(Math.abs(delta)));
+  return delta > 0 ? `+${formatted}` : `-${formatted}`;
+}
+
+interface RadarTickProps {
+  x?: string | number;
+  y?: string | number;
+  cy?: string | number;
+  textAnchor?: string;
+  payload?: { value?: string | number };
 }
 
 const AXIS_NAMES: Record<string, string> = {
@@ -25,7 +40,8 @@ const AXIS_NAMES: Record<string, string> = {
   'Cell Safety': 'Host safety'
 };
 
-export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
+export const BiophysicalRadar: React.FC<RadarProps> = React.memo(
+  ({ metrics, previousMetrics, previousName }) => {
   // Normalize each metric to a 0-100 scale for clean radar visualization
   const data = [
     {
@@ -74,26 +90,34 @@ export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
     ['Cell Safety', metrics.predictedHemolysisRisk.toLowerCase()]
   ]);
 
-  const axisTick = ({ x, y, cx, cy, payload, textAnchor }: any) => {
-    const raw = shortBySubject.get(payload.value);
-    const below = y >= cy;
+  const axisTick = ({ x = 0, y = 0, cy = 0, payload, textAnchor }: RadarTickProps) => {
+    const numX = Number(x);
+    const numY = Number(y);
+    const numCy = Number(cy);
+    const anchor =
+      textAnchor === 'start' || textAnchor === 'end' || textAnchor === 'inherit'
+        ? textAnchor
+        : 'middle';
+    const subject = String(payload?.value ?? '');
+    const raw = shortBySubject.get(subject);
+    const below = numY >= numCy;
     return (
       <g>
         <text
-          x={x}
-          y={y}
-          textAnchor={textAnchor}
-          fill="#525252"
+          x={numX}
+          y={numY}
+          textAnchor={anchor}
+          fill="var(--ink-2)"
           fontSize={9.5}
           fontFamily="var(--font-ibm-plex-sans)"
         >
-          {AXIS_NAMES[payload.value] ?? payload.value}
+          {AXIS_NAMES[subject] ?? subject}
         </text>
         <text
-          x={x}
-          y={below ? y + 9 : y - 9}
-          textAnchor={textAnchor}
-          fill="#161616"
+          x={numX}
+          y={below ? numY + 9 : numY - 9}
+          textAnchor={anchor}
+          fill="var(--ink)"
           fontSize={9.5}
           fontWeight={600}
           fontFamily="var(--font-ibm-plex-mono)"
@@ -111,6 +135,18 @@ export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
         ? 'text-warn'
         : 'text-ink-2';
 
+  const tiDelta = previousMetrics
+    ? metrics.therapeuticSelectivityIndex - previousMetrics.therapeuticSelectivityIndex
+    : 0;
+  const chargeDelta = previousMetrics ? metrics.netCharge - previousMetrics.netCharge : 0;
+  const muHDelta = previousMetrics
+    ? Number((metrics.hydrophobicMoment - previousMetrics.hydrophobicMoment).toFixed(3))
+    : 0;
+  const riskChanged =
+    Boolean(previousMetrics) &&
+    previousMetrics?.predictedHemolysisRisk !== metrics.predictedHemolysisRisk;
+  const hasAnyDelta = tiDelta !== 0 || chargeDelta !== 0 || Math.abs(muHDelta) >= 0.001 || riskChanged;
+
   return (
     <section className="flex flex-col bg-surface p-5">
       <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -123,7 +159,7 @@ export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
       <div className="h-[268px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart cx="50%" cy="50%" outerRadius="52%" data={data}>
-            <PolarGrid stroke="#e0e0e0" />
+            <PolarGrid stroke="var(--line)" />
             <PolarAngleAxis dataKey="subject" tick={axisTick} />
             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
             <Tooltip
@@ -131,7 +167,7 @@ export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
                 if (!active || !payload?.length) return null;
                 const item = payload[0].payload as (typeof data)[number];
                 return (
-                  <div className="bg-stage px-2.5 py-2 font-mono text-[11px] text-[#f4f4f4]">
+                  <div className="border border-line bg-stage px-2.5 py-2 font-mono text-[11px] text-[#f4f4f4]">
                     <p className="font-semibold">{AXIS_NAMES[item.subject] ?? item.subject}</p>
                     <p className="text-[#c6c6c6]">{item.raw}</p>
                     <p className="text-[10px] text-[#8d8d8d]">Score {Math.round(item.value)}%</p>
@@ -142,22 +178,60 @@ export const BiophysicalRadar: React.FC<RadarProps> = ({ metrics }) => {
             <Radar
               name="Candidate"
               dataKey="value"
-              stroke="#0f62fe"
+              stroke="var(--accent)"
               strokeWidth={1.5}
-              fill="#0f62fe"
-              fillOpacity={0.12}
+              fill="var(--accent)"
+              fillOpacity={0.14}
               isAnimationActive={false}
             />
           </RadarChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-2 flex items-baseline justify-between border-t border-line pt-3 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
-        <span>
-          TI <span className="text-ink">{metrics.therapeuticSelectivityIndex}/100</span>
-        </span>
-        <span className={riskTone}>Hemolysis · {metrics.predictedHemolysisRisk}</span>
+      <div className="mt-2 space-y-1.5 border-t border-line pt-3 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span>
+            TI <span className="text-ink">{metrics.therapeuticSelectivityIndex}/100</span>
+            {tiDelta !== 0 && (
+              <span
+                className={`ml-1.5 font-semibold ${tiDelta > 0 ? 'text-accent' : 'text-danger'}`}
+              >
+                ({formatSignedDelta(tiDelta)})
+              </span>
+            )}
+          </span>
+          <span className={riskTone}>
+            Hemolysis · {metrics.predictedHemolysisRisk}
+            {riskChanged && previousMetrics ? ` (was ${previousMetrics.predictedHemolysisRisk})` : ''}
+          </span>
+        </div>
+
+        {hasAnyDelta && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-sunken px-2 py-1 text-[9.5px] normal-case tracking-normal text-ink-2">
+            <span className="font-mono uppercase tracking-[0.08em] text-accent">
+              Delta vs {previousName || 'prev'}
+            </span>
+            {chargeDelta !== 0 && (
+              <span className="font-mono tabular-nums">
+                Charge{' '}
+                <strong className={chargeDelta > 0 ? 'text-accent' : 'text-danger'}>
+                  {formatSignedDelta(chargeDelta)} e
+                </strong>
+              </span>
+            )}
+            {Math.abs(muHDelta) >= 0.001 && (
+              <span className="font-mono tabular-nums">
+                μH{' '}
+                <strong className={muHDelta > 0 ? 'text-accent' : 'text-danger'}>
+                  {formatSignedDelta(muHDelta, 3)}
+                </strong>
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
-};
+});
+
+BiophysicalRadar.displayName = 'BiophysicalRadar';

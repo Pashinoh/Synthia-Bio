@@ -11,7 +11,7 @@ interface ClinicalBenchmarkPanelProps {
   onRunCompare: (seq: string, name: string) => void;
 }
 
-export const ClinicalBenchmarkPanel: React.FC<ClinicalBenchmarkPanelProps> = ({
+export const ClinicalBenchmarkPanel: React.FC<ClinicalBenchmarkPanelProps> = React.memo(({
   report,
   activeSequence,
   activeName,
@@ -101,4 +101,6 @@ export const ClinicalBenchmarkPanel: React.FC<ClinicalBenchmarkPanelProps> = ({
       </div>
     </section>
   );
-};
+});
+
+ClinicalBenchmarkPanel.displayName = 'ClinicalBenchmarkPanel';

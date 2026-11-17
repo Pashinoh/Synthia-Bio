@@ -13,7 +13,7 @@ const enzymeTone: Record<string, string> = {
   Elastase: 'text-ink-2 bg-sunken'
 };
 
-export const ProteaseShieldPanel: React.FC<ProteaseShieldPanelProps> = ({ report }) => {
+export const ProteaseShieldPanel: React.FC<ProteaseShieldPanelProps> = React.memo(({ report }) => {
   if (!report) {
     return (
       <section className="flex h-64 flex-col bg-surface p-5">
@@ -114,4 +114,6 @@ export const ProteaseShieldPanel: React.FC<ProteaseShieldPanelProps> = ({ report
       </div>
     </section>
   );
-};
+});
+
+ProteaseShieldPanel.displayName = 'ProteaseShieldPanel';

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   BenchmarkComparisonReport,
+  BiophysicalMetrics,
   ChargePhCurve,
   GeneratedPeptide,
   GenerationMode,
@@ -22,6 +23,43 @@ import { generateAlphaHelixPDB } from '@/lib/bio-engine/pdb-generator';
 export type Display3DMode = 'cartoon' | 'surface' | 'stick' | 'sphere';
 export type ColorScheme = 'hydrophobicity' | 'charge' | 'spectrum';
 export type ActiveOperation = 'idle' | 'generate' | 'batch' | 'validate' | 'optimize' | 'benchmark';
+export type ThemeMode = 'light' | 'dark';
+export type WorkspaceFocusTarget =
+  | 'stage'
+  | 'charts'
+  | 'protease'
+  | 'batch'
+  | 'optimize'
+  | 'benchmarks';
+
+export interface WorkspaceFocus {
+  target: WorkspaceFocusTarget;
+  label: string;
+  nonce: number;
+}
+
+export interface PreviousComparison {
+  sequence: string;
+  name: string;
+  metrics: BiophysicalMetrics;
+}
+
+function nextWorkspaceFocus(
+  current: WorkspaceFocus | null,
+  target: WorkspaceFocusTarget,
+  label: string
+): WorkspaceFocus {
+  return { target, label, nonce: (current?.nonce ?? 0) + 1 };
+}
+
+function toComparisonSnapshot(peptide: GeneratedPeptide | null): PreviousComparison | null {
+  if (!peptide) return null;
+  return {
+    sequence: peptide.sequence,
+    name: peptide.name,
+    metrics: peptide.metrics
+  };
+}
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000';
 
@@ -75,7 +113,10 @@ interface PeptideState {
   error: string | null;
   active3dMode: Display3DMode;
   colorScheme: ColorScheme;
+  theme: ThemeMode;
   generation: number;
+  workspaceFocus: WorkspaceFocus | null;
+  previousComparison: PreviousComparison | null;
 
   // Actions
   setSelectedPathogen: (pathogen: PathogenProfile) => void;
@@ -83,6 +124,7 @@ interface PeptideState {
   setGenerationMode: (mode: GenerationMode) => void;
   setActive3dMode: (mode: Display3DMode) => void;
   setColorScheme: (scheme: ColorScheme) => void;
+  setTheme: (theme: ThemeMode) => void;
   generatePeptide: () => Promise<void>;
   selectBatchCandidate: (candidate: ScreenedPeptideCandidate) => void;
   validateStability: (sequence: string) => Promise<void>;
@@ -150,7 +192,10 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   error: null,
   active3dMode: 'cartoon',
   colorScheme: 'hydrophobicity',
+  theme: 'light',
   generation: 1,
+  workspaceFocus: null,
+  previousComparison: null,
 
   setSelectedPathogen: (pathogen) => {
     set({
@@ -175,6 +220,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   setGenerationMode: (mode) => set({ generationMode: mode }),
   setActive3dMode: (mode) => set({ active3dMode: mode }),
   setColorScheme: (scheme) => set({ colorScheme: scheme }),
+  setTheme: (theme) => set({ theme }),
 
   resetToMock: () => {
     set({
@@ -187,7 +233,9 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
       benchmarkReport: null,
       error: null,
       isLoading: false,
-      activeOperation: 'idle'
+      activeOperation: 'idle',
+      workspaceFocus: null,
+      previousComparison: null
     });
   },
 
@@ -209,7 +257,12 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
         chargePhCurve: data.chargePhCurve,
         isLoading: false,
         activeOperation: 'idle',
-        error: null
+        error: null,
+        workspaceFocus: nextWorkspaceFocus(
+          get().workspaceFocus,
+          'protease',
+          'Protease shield & charge stability updated'
+        )
       });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown validation error';
@@ -235,7 +288,12 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
         benchmarkReport: data.report,
         isLoading: false,
         activeOperation: 'idle',
-        error: null
+        error: null,
+        workspaceFocus: nextWorkspaceFocus(
+          get().workspaceFocus,
+          'benchmarks',
+          'Clinical benchmark comparison ready'
+        )
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Benchmark comparison failed';
@@ -261,7 +319,12 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
         optimizationResult: data,
         isLoading: false,
         activeOperation: 'idle',
-        error: null
+        error: null,
+        workspaceFocus: nextWorkspaceFocus(
+          get().workspaceFocus,
+          'optimize',
+          'Directed evolution mutations ready'
+        )
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Mutation optimization failed';
@@ -311,13 +374,20 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
       chargePhCurve: null,
       benchmarkReport: null,
       generation: get().generation + 1,
-      error: null
+      error: null,
+      previousComparison: toComparisonSnapshot(currentPeptide),
+      workspaceFocus: nextWorkspaceFocus(
+        get().workspaceFocus,
+        'stage',
+        'Evolved peptide applied to 3D & metrics'
+      )
     });
 
     void fetchAuxiliaryAnalytics(updatedPeptide.sequence, updatedPeptide.name, set);
   },
 
   selectBatchCandidate: (candidate) => {
+    const previous = get().currentPeptide;
     set({
       currentPeptide: candidate.peptide,
       proteaseReport: null,
@@ -326,7 +396,16 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
       optimizationResult: null,
       benchmarkReport: null,
       generation: get().generation + 1,
-      error: null
+      error: null,
+      previousComparison:
+        previous && previous.sequence !== candidate.peptide.sequence
+          ? toComparisonSnapshot(previous)
+          : get().previousComparison,
+      workspaceFocus: nextWorkspaceFocus(
+        get().workspaceFocus,
+        'stage',
+        `Loaded batch candidate #${candidate.rank}`
+      )
     });
 
     void fetchAuxiliaryAnalytics(candidate.peptide.sequence, candidate.peptide.name, set);
@@ -367,6 +446,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
           throw new Error('Batch screening returned no candidates');
         }
 
+        const previousSnap = toComparisonSnapshot(get().currentPeptide);
         set({
           currentPeptide: picked,
           batchCandidates: data.candidates,
@@ -377,7 +457,13 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
           generation: get().generation + 1,
           isLoading: false,
           activeOperation: 'idle',
-          error: null
+          error: null,
+          previousComparison: previousSnap,
+          workspaceFocus: nextWorkspaceFocus(
+            get().workspaceFocus,
+            'batch',
+            '3x batch candidates ranked'
+          )
         });
 
         void fetchAuxiliaryAnalytics(picked.sequence, picked.name, set);
@@ -405,6 +491,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
         throw new Error('Backend returned empty peptide payload');
       }
 
+      const previousSnap = toComparisonSnapshot(get().currentPeptide);
       set({
         currentPeptide: data.peptide,
         batchCandidates: [],
@@ -415,7 +502,13 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
         generation: get().generation + 1,
         isLoading: false,
         activeOperation: 'idle',
-        error: null
+        error: null,
+        previousComparison: previousSnap,
+        workspaceFocus: nextWorkspaceFocus(
+          get().workspaceFocus,
+          'stage',
+          'De novo peptide structure generated'
+        )
       });
 
       void fetchAuxiliaryAnalytics(data.peptide.sequence, data.peptide.name, set);

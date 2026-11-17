@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { usePeptideStore } from '@/store/usePeptideStore';
 import {
   ChevronDown,
@@ -43,15 +44,26 @@ function triggerDownload(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
-export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
+export const SequenceCard: React.FC<CardProps> = React.memo(({ onOpenProtocol }) => {
   const {
     currentPeptide,
     validateStability,
     optimizeCurrentPeptide,
     isLoading,
     activeOperation,
-    generation
-  } = usePeptideStore();
+    generation,
+    previousComparison
+  } = usePeptideStore(
+    useShallow((s) => ({
+      currentPeptide: s.currentPeptide,
+      validateStability: s.validateStability,
+      optimizeCurrentPeptide: s.optimizeCurrentPeptide,
+      isLoading: s.isLoading,
+      activeOperation: s.activeOperation,
+      generation: s.generation,
+      previousComparison: s.previousComparison
+    }))
+  );
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -84,6 +96,18 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
 
   const baseSlug = currentPeptide.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
   const gates = currentPeptide.inSilicoGates;
+  const baselineSequence = currentPeptide.optimizationSummary?.applied
+    ? currentPeptide.optimizationSummary.originalSequence
+    : previousComparison && previousComparison.sequence !== currentPeptide.sequence
+      ? previousComparison.sequence
+      : null;
+  const showPositionalDiff =
+    Boolean(baselineSequence) && baselineSequence?.length === currentPeptide.sequence.length;
+  const mutatedCount = showPositionalDiff && baselineSequence
+    ? currentPeptide.sequence
+        .split('')
+        .filter((res, idx) => baselineSequence[idx] !== res).length
+    : 0;
 
   const handleExportAction = async (action: 'fasta' | 'pdb' | 'cif' | 'sheet') => {
     if (action === 'fasta') {
@@ -116,7 +140,7 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
     ...(currentPeptide.cifContent
       ? [{ action: 'cif' as const, label: 'Download mmCIF', hint: '.cif', icon: Download }]
       : []),
-    { action: 'sheet', label: 'Lab sheet', hint: 'print', icon: FileText }
+    { action: 'sheet', label: 'Lab sheet', hint: 'pdf / print', icon: FileText }
   ];
 
   return (
@@ -186,26 +210,48 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
 
       {/* Residue chain */}
       <div className="px-5">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-baseline justify-between gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
             Primary sequence
           </span>
-          {copied && (
-            <span className="flex items-center gap-1 font-mono text-[10px] text-ink-3">
-              <Check className="h-3 w-3" aria-hidden /> copied
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {mutatedCount > 0 && (
+              <span className="bg-accent-soft px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.08em] text-accent">
+                {mutatedCount} {mutatedCount === 1 ? 'mutation' : 'mutations'}
+              </span>
+            )}
+            {copied && (
+              <span className="flex items-center gap-1 font-mono text-[10px] text-ink-3">
+                <Check className="h-3 w-3" aria-hidden /> copied
+              </span>
+            )}
+          </div>
         </div>
         <div className="od-scroll mt-2 flex flex-wrap gap-y-0.5 bg-sunken px-3 py-2.5 font-mono text-[13px] leading-6 tracking-[0.16em]">
-          {currentPeptide.sequence.split('').map((residue, idx) => (
-            <span
-              key={idx}
-              title={`${idx + 1} · ${AMINO_ACID_TABLE[residue]?.fullName || residue} (${AMINO_ACID_TABLE[residue]?.category ?? 'unknown'})`}
-              className={`cursor-default transition-colors hover:bg-[#e0e0e0] ${residueTone(residue)}`}
-            >
-              {residue}
-            </span>
-          ))}
+          {currentPeptide.sequence.split('').map((residue, idx) => {
+            const prevResidue = showPositionalDiff && baselineSequence ? baselineSequence[idx] : null;
+            const isMutated = Boolean(prevResidue) && prevResidue !== residue;
+            const aaName = AMINO_ACID_TABLE[residue]?.fullName || residue;
+            const aaCat = AMINO_ACID_TABLE[residue]?.category ?? 'unknown';
+
+            return (
+              <span
+                key={idx}
+                title={
+                  isMutated && prevResidue
+                    ? `Pos ${idx + 1} · Mutated ${prevResidue} -> ${residue} (${aaName}, ${aaCat})`
+                    : `${idx + 1} · ${aaName} (${aaCat})`
+                }
+                className={`cursor-default transition-colors hover:bg-track-hover ${
+                  isMutated
+                    ? 'border-b-2 border-accent bg-accent-soft px-0.5 font-semibold text-accent'
+                    : residueTone(residue)
+                }`}
+              >
+                {residue}
+              </span>
+            );
+          })}
         </div>
       </div>
 
@@ -290,4 +336,6 @@ export const SequenceCard: React.FC<CardProps> = ({ onOpenProtocol }) => {
       </div>
     </section>
   );
-};
+});
+
+SequenceCard.displayName = 'SequenceCard';

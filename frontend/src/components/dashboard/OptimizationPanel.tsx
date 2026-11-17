@@ -10,7 +10,7 @@ interface OptimizationPanelProps {
   onApplyEvolved: () => void;
 }
 
-export const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
+export const OptimizationPanel: React.FC<OptimizationPanelProps> = React.memo(({
   result,
   activeSequence,
   onApplyEvolved
@@ -89,7 +89,7 @@ export const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
               className={`flex h-9 shrink-0 items-center gap-1.5 px-3 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
                 isApplied
                   ? 'border border-line bg-surface text-ink-3'
-                  : 'bg-accent text-white hover:bg-accent-hover'
+                  : 'bg-accent-btn text-white hover:bg-accent-hover'
               }`}
             >
               {isApplied && <Check className="h-3.5 w-3.5" aria-hidden />}
@@ -123,4 +123,6 @@ export const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
       </div>
     </section>
   );
-};
+});
+
+OptimizationPanel.displayName = 'OptimizationPanel';

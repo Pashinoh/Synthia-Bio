@@ -7,15 +7,15 @@ interface HelicalWheelChartProps {
   wheel: HelicalWheelProjection | null;
 }
 
-const NODE_COLORS: Record<string, string> = {
-  hydrophobic: '#161616',
-  hydrophilic: '#c6c6c6',
-  positive: '#0f62fe',
-  negative: '#da1e28',
-  neutral: '#c6c6c6'
+const NODE_COLORS: Record<string, { fill: string; text: string }> = {
+  hydrophobic: { fill: 'var(--ink)', text: 'var(--surface)' },
+  hydrophilic: { fill: 'var(--line-2)', text: 'var(--ink)' },
+  positive: { fill: 'var(--accent-btn)', text: '#ffffff' },
+  negative: { fill: 'var(--danger)', text: '#ffffff' },
+  neutral: { fill: 'var(--line-2)', text: 'var(--ink)' }
 };
 
-export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) => {
+export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = React.memo(({ wheel }) => {
   const size = 260;
   const center = size / 2;
 
@@ -50,12 +50,12 @@ export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) =
           role="img"
           aria-label="Helical wheel projection"
         >
-          <circle cx={center} cy={center} r={95} fill="none" stroke="#e0e0e0" strokeDasharray="2 3" />
-          <circle cx={center} cy={center} r={2} fill="#8d8d8d" />
+          <circle cx={center} cy={center} r={95} fill="none" stroke="var(--line)" strokeDasharray="2 3" />
+          <circle cx={center} cy={center} r={2} fill="var(--ink-3)" />
 
           <defs>
             <marker id="od-moment-arrow" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7" fill="#161616" />
+              <polygon points="0 0, 10 3.5, 0 7" fill="var(--ink)" />
             </marker>
           </defs>
 
@@ -64,7 +64,7 @@ export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) =
             y1={center}
             x2={center + momentVector.dx * 80}
             y2={center - momentVector.dy * 80}
-            stroke="#161616"
+            stroke="var(--ink)"
             strokeWidth={1.5}
             markerEnd="url(#od-moment-arrow)"
           />
@@ -73,12 +73,11 @@ export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) =
             const svgRadius = 95;
             const x = center + node.x * svgRadius;
             const y = center - node.y * svgRadius;
-            const fill = NODE_COLORS[node.category] ?? '#c6c6c6';
-            const dark = node.category === 'positive' || node.category === 'negative' || node.category === 'hydrophobic';
+            const palette = NODE_COLORS[node.category] ?? NODE_COLORS.neutral;
 
             return (
               <g key={node.position}>
-                <circle cx={x} cy={y} r={7} fill={fill} stroke="#ffffff" strokeWidth={1.5} />
+                <circle cx={x} cy={y} r={7} fill={palette.fill} stroke="var(--surface)" strokeWidth={1.5} />
                 <text
                   x={x}
                   y={y + 3.5}
@@ -86,7 +85,7 @@ export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) =
                   fontSize={9}
                   fontFamily="var(--font-ibm-plex-mono)"
                   fontWeight={600}
-                  fill={dark ? '#ffffff' : '#161616'}
+                  fill={palette.text}
                 >
                   {node.residue}
                 </text>
@@ -109,4 +108,6 @@ export const HelicalWheelChart: React.FC<HelicalWheelChartProps> = ({ wheel }) =
       </div>
     </section>
   );
-};
+});
+
+HelicalWheelChart.displayName = 'HelicalWheelChart';

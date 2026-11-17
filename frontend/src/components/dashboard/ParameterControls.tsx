@@ -1,43 +1,63 @@
 ﻿'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { usePeptideStore } from '@/store/usePeptideStore';
-import { Wand2, Flame, Shield, Layers, Zap } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
+import { Wand2, Flame, Shield, Layers, Zap, ChevronDown } from 'lucide-react';
 import { GenerationMode, PoreMechanism, SafetyThreshold } from '@/types/peptide';
 
 const MECHANISMS = [
-  { id: 'toroidal', label: 'Toroidal pore', icon: Wand2 },
+  { id: 'toroidal', label: 'Toroidal', icon: Wand2 },
   { id: 'barrel-stave', label: 'Barrel-stave', icon: Flame },
-  { id: 'carpet', label: 'Carpet model', icon: Shield }
+  { id: 'carpet', label: 'Carpet', icon: Shield }
 ] as const;
 
 const SAFETY = [
-  { id: 'high-selectivity', label: 'Ultra-low hemolysis' },
-  { id: 'balanced', label: 'Balanced penetration' }
+  { id: 'high-selectivity', label: 'Low hemolysis' },
+  { id: 'balanced', label: 'Balanced' }
 ] as const;
 
-const MODES: Array<{ id: GenerationMode; label: string; hint: string; icon: typeof Zap }> = [
-  { id: 'single', label: 'Single design', hint: 'Auto AI (~1.5s)', icon: Zap },
-  { id: 'batch', label: 'Batch 3x', hint: 'Multi-engine screen', icon: Layers }
+const MODES: Array<{ id: GenerationMode; label: string; icon: typeof Zap }> = [
+  { id: 'single', label: 'Single · Auto', icon: Zap },
+  { id: 'batch', label: 'Batch 3x', icon: Layers }
 ];
 
-export const ParameterControls: React.FC = () => {
+export const ParameterControls: React.FC = React.memo(() => {
   const {
-    designParams,
+    sequenceLength,
+    poreMechanism,
+    safetyThreshold,
+    lockedMotif,
     generationMode,
-    updateDesignParams,
-    setGenerationMode,
-    generatePeptide,
+    recommendedLength,
     isLoading,
     activeOperation,
-    selectedPathogen
-  } = usePeptideStore();
+    updateDesignParams,
+    setGenerationMode,
+    generatePeptide
+  } = usePeptideStore(
+    useShallow((s) => ({
+      sequenceLength: s.designParams.sequenceLength,
+      poreMechanism: s.designParams.poreMechanism,
+      safetyThreshold: s.designParams.safetyThreshold,
+      lockedMotif: s.designParams.lockedMotif || '',
+      generationMode: s.generationMode,
+      recommendedLength: s.selectedPathogen.recommendedLength,
+      isLoading: s.isLoading,
+      activeOperation: s.activeOperation,
+      updateDesignParams: s.updateDesignParams,
+      setGenerationMode: s.setGenerationMode,
+      generatePeptide: s.generatePeptide
+    }))
+  );
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const isSynthesizing =
     isLoading && (activeOperation === 'generate' || activeOperation === 'batch');
 
   return (
-    <section className="space-y-5 bg-surface p-5">
+    <section className="space-y-3.5 bg-surface p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
           02 — Design constraints
@@ -49,13 +69,11 @@ export const ParameterControls: React.FC = () => {
 
       {/* Sequence length */}
       <div>
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="mb-1 flex items-baseline justify-between">
           <label htmlFor="seq-length" className="text-[12px] font-medium text-ink">
             Sequence length
           </label>
-          <span className="font-mono text-[12px] tabular-nums text-ink">
-            {designParams.sequenceLength} aa
-          </span>
+          <span className="font-mono text-[12px] tabular-nums text-ink">{sequenceLength} aa</span>
         </div>
         <input
           id="seq-length"
@@ -63,43 +81,41 @@ export const ParameterControls: React.FC = () => {
           min="12"
           max="28"
           step="1"
-          value={designParams.sequenceLength}
+          value={sequenceLength}
           onChange={(e) => updateDesignParams({ sequenceLength: parseInt(e.target.value, 10) })}
           disabled={isLoading}
         />
-        <div className="mt-1 flex items-baseline justify-between font-mono text-[10px] text-ink-3">
-          <span>12 · compact</span>
-          <span>opt. {selectedPathogen.recommendedLength.join('–')}</span>
-          <span>28 · extended</span>
+        <div className="flex items-baseline justify-between font-mono text-[10px] text-ink-3">
+          <span>12</span>
+          <span>opt. {recommendedLength.join('–')}</span>
+          <span>28</span>
         </div>
       </div>
 
-      {/* Mechanism */}
+      {/* Mechanism (compact 3-col horizontal grid) */}
       <fieldset disabled={isLoading} className="disabled:opacity-50">
-        <legend className="mb-2 text-[12px] font-medium text-ink">
+        <legend className="mb-1.5 text-[12px] font-medium text-ink">
           Membrane disruption mechanism
         </legend>
-        <div className="space-y-1 bg-[#e8e8e8] p-1">
+        <div className="grid grid-cols-3 gap-1 bg-track p-1">
           {MECHANISMS.map((m) => {
-            const isSelected = designParams.poreMechanism === m.id;
+            const isSelected = poreMechanism === m.id;
             return (
               <button
                 key={m.id}
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => updateDesignParams({ poreMechanism: m.id as PoreMechanism })}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                className={`flex items-center justify-center gap-1.5 px-2 py-2 text-center transition-colors ${
                   isSelected
-                    ? 'bg-surface shadow-[inset_2px_0_0_#0f62fe]'
-                    : 'bg-transparent hover:bg-[#dcdcdc]'
+                    ? 'bg-surface shadow-[inset_0_-2px_0_var(--accent)]'
+                    : 'bg-transparent hover:bg-track-hover'
                 }`}
                 aria-label={m.label}
               >
-                <m.icon className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
-                <span className="min-w-0">
-                  <span className="block text-[12px] font-medium leading-tight text-ink">
-                    {m.label}
-                  </span>
+                <m.icon className="h-3.5 w-3.5 shrink-0 text-ink-2" aria-hidden />
+                <span className="truncate text-[11px] font-medium leading-tight text-ink">
+                  {m.label}
                 </span>
               </button>
             );
@@ -107,28 +123,28 @@ export const ParameterControls: React.FC = () => {
         </div>
       </fieldset>
 
-      {/* Safety threshold */}
+      {/* Safety threshold (compact 2-col horizontal grid) */}
       <fieldset disabled={isLoading} className="disabled:opacity-50">
-        <legend className="mb-2 text-[12px] font-medium text-ink">
+        <legend className="mb-1.5 text-[12px] font-medium text-ink">
           Erythrocyte safety threshold
         </legend>
-        <div className="grid grid-cols-1 gap-1 bg-[#e8e8e8] p-1 sm:grid-cols-2 lg:grid-cols-1">
+        <div className="grid grid-cols-2 gap-1 bg-track p-1">
           {SAFETY.map((s) => {
-            const isSelected = designParams.safetyThreshold === s.id;
+            const isSelected = safetyThreshold === s.id;
             return (
               <button
                 key={s.id}
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => updateDesignParams({ safetyThreshold: s.id as SafetyThreshold })}
-                className={`px-3 py-2.5 text-left transition-colors ${
+                className={`px-2.5 py-2 text-left transition-colors ${
                   isSelected
-                    ? 'bg-surface shadow-[inset_2px_0_0_#0f62fe]'
-                    : 'bg-transparent hover:bg-[#dcdcdc]'
+                    ? 'bg-surface shadow-[inset_2px_0_0_var(--accent)]'
+                    : 'bg-transparent hover:bg-track-hover'
                 }`}
                 aria-label={s.label}
               >
-                <span className="block text-[12px] font-medium leading-tight text-ink">
+                <span className="block truncate text-[11px] font-medium leading-tight text-ink">
                   {s.label}
                 </span>
               </button>
@@ -137,67 +153,79 @@ export const ParameterControls: React.FC = () => {
         </div>
       </fieldset>
 
-      {/* Synthesis Mode (Single auto vs Multi-engine batch) */}
-      <fieldset disabled={isLoading} className="disabled:opacity-50">
-        <legend className="mb-2 text-[12px] font-medium text-ink">Synthesis workflow</legend>
-        <div className="grid grid-cols-2 gap-1 bg-[#e8e8e8] p-1">
+      {/* Compact Synthesis Mode + Collapsible Advanced Motif Lock */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-1 bg-track p-1">
           {MODES.map((m) => {
             const isSelected = generationMode === m.id;
             return (
               <button
                 key={m.id}
                 type="button"
+                disabled={isLoading}
                 aria-pressed={isSelected}
                 onClick={() => setGenerationMode(m.id)}
-                className={`px-2.5 py-2 text-left transition-colors ${
+                className={`flex items-center justify-center gap-1.5 px-2 py-1.5 transition-colors disabled:opacity-50 ${
                   isSelected
-                    ? 'bg-surface shadow-[inset_2px_0_0_#0f62fe]'
-                    : 'bg-transparent hover:bg-[#dcdcdc]'
+                    ? 'bg-surface shadow-[inset_2px_0_0_var(--accent)]'
+                    : 'bg-transparent hover:bg-track-hover'
                 }`}
               >
-                <span className="flex items-center gap-1.5 text-[12px] font-medium leading-tight text-ink">
-                  <m.icon className="h-3.5 w-3.5 text-ink-2" aria-hidden />
-                  <span>{m.label}</span>
-                </span>
-                <span className="mt-0.5 block font-mono text-[10px] text-ink-3">{m.hint}</span>
+                <m.icon className="h-3.5 w-3.5 shrink-0 text-ink-2" aria-hidden />
+                <span className="text-[11px] font-medium leading-tight text-ink">{m.label}</span>
               </button>
             );
           })}
         </div>
-      </fieldset>
 
-      {/* Optional Motif Scaffolding Lock */}
-      <div>
-        <div className="mb-1.5 flex items-baseline justify-between">
-          <label htmlFor="locked-motif" className="text-[12px] font-medium text-ink">
-            Scaffold motif lock <span className="font-normal text-ink-3">(optional)</span>
-          </label>
-          <span className="font-mono text-[10px] text-ink-3">2–12 aa</span>
+        <div>
+          <button
+            type="button"
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((open) => !open)}
+            className="flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3 transition-colors hover:text-ink"
+          >
+            <span>
+              Advanced · Motif lock{lockedMotif ? ` (${lockedMotif})` : ''}
+            </span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </button>
+
+          {advancedOpen && (
+            <div className="mt-2">
+              <div className="mb-1 flex items-baseline justify-between">
+                <label htmlFor="locked-motif" className="text-[11px] font-medium text-ink">
+                  Scaffold motif lock <span className="font-normal text-ink-3">(optional)</span>
+                </label>
+                <span className="font-mono text-[10px] text-ink-3">2–12 aa</span>
+              </div>
+              <input
+                id="locked-motif"
+                type="text"
+                maxLength={12}
+                disabled={isLoading}
+                value={lockedMotif}
+                placeholder="e.g. KWKLFKK"
+                onChange={(e) =>
+                  updateDesignParams({
+                    lockedMotif: e.target.value.toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '')
+                  })
+                }
+                className="h-8 w-full border border-line bg-sunken px-2.5 font-mono text-[12px] tracking-[0.14em] text-ink placeholder:text-ink-3/70 focus:border-accent focus:outline-none disabled:opacity-50"
+              />
+            </div>
+          )}
         </div>
-        <input
-          id="locked-motif"
-          type="text"
-          maxLength={12}
-          disabled={isLoading}
-          value={designParams.lockedMotif || ''}
-          placeholder="e.g. KWKLFKK"
-          onChange={(e) =>
-            updateDesignParams({
-              lockedMotif: e.target.value.toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '')
-            })
-          }
-          className="h-9 w-full border border-line bg-sunken px-3 font-mono text-[12px] tracking-[0.14em] text-ink placeholder:text-ink-3/70 focus:border-accent focus:outline-none disabled:opacity-50"
-        />
-        <p className="mt-1 font-mono text-[10px] text-ink-3">
-          Preserves conserved active residues during AI design &amp; evolution.
-        </p>
       </div>
 
       <button
         type="button"
         onClick={() => void generatePeptide()}
         disabled={isLoading}
-        className="flex h-11 w-full items-center justify-center gap-2 bg-accent font-mono text-[11px] uppercase tracking-[0.12em] text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-line-2"
+        className="flex h-10 w-full items-center justify-center gap-2 bg-accent-btn font-mono text-[11px] uppercase tracking-[0.12em] text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-line-2"
       >
         {isSynthesizing ? (
           <>
@@ -212,4 +240,6 @@ export const ParameterControls: React.FC = () => {
       </button>
     </section>
   );
-};
+});
+
+ParameterControls.displayName = 'ParameterControls';

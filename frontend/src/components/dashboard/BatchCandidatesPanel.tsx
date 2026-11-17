@@ -9,7 +9,7 @@ interface BatchCandidatesPanelProps {
   onSelect: (candidate: ScreenedPeptideCandidate) => void;
 }
 
-export const BatchCandidatesPanel: React.FC<BatchCandidatesPanelProps> = ({
+export const BatchCandidatesPanel: React.FC<BatchCandidatesPanelProps> = React.memo(({
   candidates,
   activeSequence,
   onSelect
@@ -38,7 +38,7 @@ export const BatchCandidatesPanel: React.FC<BatchCandidatesPanelProps> = ({
               onClick={() => onSelect(cand)}
               className={`flex w-full flex-col gap-1.5 px-4 py-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
                 isActive
-                  ? 'bg-accent-soft/60 shadow-[inset_2px_0_0_#0f62fe]'
+                  ? 'bg-accent-soft/60 shadow-[inset_2px_0_0_var(--accent)]'
                   : 'bg-surface hover:bg-sunken'
               }`}
             >
@@ -84,4 +84,6 @@ export const BatchCandidatesPanel: React.FC<BatchCandidatesPanelProps> = ({
       </div>
     </section>
   );
-};
+});
+
+BatchCandidatesPanel.displayName = 'BatchCandidatesPanel';

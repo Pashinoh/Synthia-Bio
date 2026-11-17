@@ -8,6 +8,7 @@
     "dev:fe": "npm --prefix frontend run dev",
     "dev:be": "npm --prefix backend run dev",
     "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,emerald\" \"npm run dev:be\" \"npm run dev:fe\"",
+    "start:all": "npm run build:be && npm run build && concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,emerald\" \"npm --prefix backend run start\" \"npm --prefix frontend run start\"",
     "build": "npm --prefix frontend run build",
     "build:be": "npm --prefix backend run build",
     "test:be": "npm --prefix backend test",

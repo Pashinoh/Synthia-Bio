@@ -16,8 +16,8 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      // Fast timeout to avoid blocking if backend isn't running locally
-      signal: AbortSignal.timeout(2500)
+      // Allow multi-provider AI + closed-loop optimization time to complete cleanly
+      signal: AbortSignal.timeout(15000)
     });
 
     if (beRes.ok) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   // 2. Direct Fallback: Execute inside Next.js directly
   try {
-    let pathogen = WHO_PATHOGENS.find((p) => p.id === body.pathogenId) || DEFAULT_PATHOGEN;
+    const pathogen = WHO_PATHOGENS.find((p) => p.id === body.pathogenId) || DEFAULT_PATHOGEN;
     const length = Math.max(12, Math.min(28, body.sequenceLength || 18));
     const params = {
       pathogenId: pathogen.id,

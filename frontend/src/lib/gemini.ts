@@ -51,7 +51,7 @@ export async function generatePeptideWithGemini(
 Respond ONLY with raw valid JSON. Do not wrap in markdown quotes if possible.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,

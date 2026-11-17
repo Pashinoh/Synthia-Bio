@@ -1,26 +1,77 @@
 import { create } from 'zustand';
 import {
+  BenchmarkComparisonReport,
+  ChargePhCurve,
+  GeneratedPeptide,
+  GenerationMode,
+  HelicalWheelProjection,
+  OptimizePeptideResponse,
   PathogenProfile,
   PeptideDesignParams,
-  GeneratedPeptide,
   ProteaseStabilityReport,
-  HelicalWheelProjection,
-  ChargePhCurve
+  ScreenedPeptideCandidate,
+  CompareBenchmarksResponse,
+  GenerateBatchResponse,
+  GeneratePeptideResponse
 } from '@/types/peptide';
-import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from '@/lib/pathogens';
+import { DEFAULT_PATHOGEN } from '@/lib/pathogens';
 import { MOCK_GENERATED_PEPTIDE } from '@/lib/mock-data';
+import { calculateBiophysicalMetrics, getAminoAcidProfile } from '@/lib/bio-engine/calculators';
+import { generateAlphaHelixPDB } from '@/lib/bio-engine/pdb-generator';
 
 export type Display3DMode = 'cartoon' | 'surface' | 'stick' | 'sphere';
 export type ColorScheme = 'hydrophobicity' | 'charge' | 'spectrum';
+export type ActiveOperation = 'idle' | 'generate' | 'batch' | 'validate' | 'optimize' | 'benchmark';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000';
+
+class HttpStatusError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function postJson<T extends { success: boolean; error?: string }>(
+  url: string,
+  body: unknown,
+  timeoutMs = 15000
+): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+
+  if (response.status === 429) {
+    const retryAfter = response.headers.get('retry-after') || response.headers.get('Retry-After');
+    const seconds = retryAfter ? parseInt(retryAfter, 10) : 45;
+    throw new HttpStatusError(429, `Rate limit exceeded. Try again in ${seconds}s.`);
+  }
+
+  const data = (await response.json()) as T;
+  if (!response.ok || !data.success) {
+    throw new HttpStatusError(response.status, data.error || `Request failed (${response.status})`);
+  }
+
+  return data;
+}
 
 interface PeptideState {
   selectedPathogen: PathogenProfile;
   designParams: PeptideDesignParams;
+  generationMode: GenerationMode;
   currentPeptide: GeneratedPeptide | null;
+  batchCandidates: ScreenedPeptideCandidate[];
   proteaseReport: ProteaseStabilityReport | null;
   helicalWheel: HelicalWheelProjection | null;
   chargePhCurve: ChargePhCurve | null;
+  optimizationResult: OptimizePeptideResponse | null;
+  benchmarkReport: BenchmarkComparisonReport | null;
   isLoading: boolean;
+  activeOperation: ActiveOperation;
   error: string | null;
   active3dMode: Display3DMode;
   colorScheme: ColorScheme;
@@ -29,11 +80,50 @@ interface PeptideState {
   // Actions
   setSelectedPathogen: (pathogen: PathogenProfile) => void;
   updateDesignParams: (params: Partial<PeptideDesignParams>) => void;
+  setGenerationMode: (mode: GenerationMode) => void;
   setActive3dMode: (mode: Display3DMode) => void;
   setColorScheme: (scheme: ColorScheme) => void;
   generatePeptide: () => Promise<void>;
+  selectBatchCandidate: (candidate: ScreenedPeptideCandidate) => void;
   validateStability: (sequence: string) => Promise<void>;
+  optimizeCurrentPeptide: (rounds?: number) => Promise<void>;
+  applyOptimizedSequence: () => void;
+  compareBenchmarks: (sequence: string, candidateName?: string) => Promise<void>;
   resetToMock: () => void;
+}
+
+async function fetchAuxiliaryAnalytics(
+  sequence: string,
+  candidateName: string,
+  set: (partial: Partial<PeptideState>) => void
+): Promise<void> {
+  const [stabilityRes, benchmarkRes] = await Promise.allSettled([
+    postJson<{
+      success: boolean;
+      error?: string;
+      proteaseReport: ProteaseStabilityReport;
+      helicalWheel: HelicalWheelProjection;
+      chargePhCurve: ChargePhCurve;
+    }>(`${BACKEND_URL}/api/validate-stability`, { sequence }, 10000),
+    postJson<CompareBenchmarksResponse>(
+      `${BACKEND_URL}/api/benchmarks/compare`,
+      { sequence, candidateName },
+      10000
+    )
+  ]);
+
+  const updates: Partial<PeptideState> = {};
+  if (stabilityRes.status === 'fulfilled') {
+    updates.proteaseReport = stabilityRes.value.proteaseReport;
+    updates.helicalWheel = stabilityRes.value.helicalWheel;
+    updates.chargePhCurve = stabilityRes.value.chargePhCurve;
+  }
+  if (benchmarkRes.status === 'fulfilled') {
+    updates.benchmarkReport = benchmarkRes.value.report;
+  }
+  if (Object.keys(updates).length > 0) {
+    set(updates);
+  }
 }
 
 export const usePeptideStore = create<PeptideState>((set, get) => ({
@@ -42,13 +132,21 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     pathogenId: DEFAULT_PATHOGEN.id,
     sequenceLength: 18,
     poreMechanism: 'toroidal',
-    safetyThreshold: 'high-selectivity'
+    safetyThreshold: 'high-selectivity',
+    provider: 'auto',
+    autoOptimize: true,
+    lockedMotif: ''
   },
+  generationMode: 'single',
   currentPeptide: MOCK_GENERATED_PEPTIDE,
+  batchCandidates: [],
   proteaseReport: null,
   helicalWheel: null,
   chargePhCurve: null,
+  optimizationResult: null,
+  benchmarkReport: null,
   isLoading: false,
+  activeOperation: 'idle',
   error: null,
   active3dMode: 'cartoon',
   colorScheme: 'hydrophobicity',
@@ -74,102 +172,260 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     });
   },
 
+  setGenerationMode: (mode) => set({ generationMode: mode }),
   setActive3dMode: (mode) => set({ active3dMode: mode }),
   setColorScheme: (scheme) => set({ colorScheme: scheme }),
 
   resetToMock: () => {
     set({
       currentPeptide: MOCK_GENERATED_PEPTIDE,
+      batchCandidates: [],
       proteaseReport: null,
       helicalWheel: null,
       chargePhCurve: null,
+      optimizationResult: null,
+      benchmarkReport: null,
       error: null,
-      isLoading: false
+      isLoading: false,
+      activeOperation: 'idle'
     });
   },
 
   validateStability: async (sequence: string) => {
-    set({ isLoading: true, error: null });
-
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000';
+    set({ isLoading: true, activeOperation: 'validate', error: null });
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/validate-stability`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sequence })
-      });
-
-      if (response.status === 429) {
-        const retryAfter = response.headers.get('retry-after') || response.headers.get('Retry-After');
-        const seconds = retryAfter ? parseInt(retryAfter, 10) : 45;
-        throw new Error(`Rate limit exceeded. Try again in ${seconds}s.`);
-      }
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to validate stability');
-      }
+      const data = await postJson<{
+        success: boolean;
+        error?: string;
+        proteaseReport: ProteaseStabilityReport;
+        helicalWheel: HelicalWheelProjection;
+        chargePhCurve: ChargePhCurve;
+      }>(`${BACKEND_URL}/api/validate-stability`, { sequence });
 
       set({
         proteaseReport: data.proteaseReport,
         helicalWheel: data.helicalWheel,
         chargePhCurve: data.chargePhCurve,
         isLoading: false,
+        activeOperation: 'idle',
         error: null
       });
     } catch (err: unknown) {
-      console.warn('Stability validation error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown validation error';
       set({
         proteaseReport: null,
         helicalWheel: null,
         chargePhCurve: null,
         isLoading: false,
+        activeOperation: 'idle',
         error: errorMessage
       });
     }
   },
 
-  generatePeptide: async () => {
-    const { designParams, selectedPathogen } = get();
-    set({ isLoading: true, error: null });
-
+  compareBenchmarks: async (sequence: string, candidateName?: string) => {
+    set({ isLoading: true, activeOperation: 'benchmark', error: null });
     try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pathogenId: selectedPathogen.id,
-          sequenceLength: designParams.sequenceLength,
-          poreMechanism: designParams.poreMechanism,
-          safetyThreshold: designParams.safetyThreshold,
-          customPathogenName: designParams.customPathogenName
-        })
+      const data = await postJson<CompareBenchmarksResponse>(
+        `${BACKEND_URL}/api/benchmarks/compare`,
+        { sequence, candidateName: candidateName || get().currentPeptide?.name }
+      );
+      set({
+        benchmarkReport: data.report,
+        isLoading: false,
+        activeOperation: 'idle',
+        error: null
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Benchmark comparison failed';
+      set({ isLoading: false, activeOperation: 'idle', error: msg });
+    }
+  },
+
+  optimizeCurrentPeptide: async (rounds = 3) => {
+    const { currentPeptide, selectedPathogen, designParams } = get();
+    if (!currentPeptide) return;
+
+    set({ isLoading: true, activeOperation: 'optimize', error: null });
+    try {
+      const cleanMotif = designParams.lockedMotif?.trim() || undefined;
+      const data = await postJson<OptimizePeptideResponse>(`${BACKEND_URL}/api/optimize`, {
+        sequence: currentPeptide.sequence,
+        pathogenId: selectedPathogen.id,
+        rounds,
+        ...(cleanMotif ? { lockedMotif: cleanMotif } : {})
       });
 
-      const data = await response.json();
+      set({
+        optimizationResult: data,
+        isLoading: false,
+        activeOperation: 'idle',
+        error: null
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Mutation optimization failed';
+      set({ isLoading: false, activeOperation: 'idle', error: msg });
+    }
+  },
 
-      if (!response.ok || !data.success || !data.peptide) {
-        throw new Error(data.error || 'Failed to synthesize therapeutic candidate');
+  applyOptimizedSequence: () => {
+    const { currentPeptide, optimizationResult } = get();
+    if (!currentPeptide || !optimizationResult) return;
+
+    const traj = optimizationResult.evolutionTrajectory;
+    if (!traj.finalSequence || traj.finalSequence === currentPeptide.sequence) return;
+
+    const nextName = currentPeptide.name.endsWith('-Opt')
+      ? currentPeptide.name
+      : `${currentPeptide.name}-Opt`;
+    const nextMetrics = traj.finalMetrics ?? calculateBiophysicalMetrics(traj.finalSequence);
+    const nextProfile = getAminoAcidProfile(traj.finalSequence);
+    const nextPdb = generateAlphaHelixPDB(traj.finalSequence, nextName);
+
+    const updatedPeptide: GeneratedPeptide = {
+      ...currentPeptide,
+      name: nextName,
+      sequence: traj.finalSequence,
+      length: traj.finalSequence.length,
+      metrics: nextMetrics,
+      aminoAcidProfile: nextProfile,
+      pdbContent: nextPdb,
+      cifContent: undefined,
+      inSilicoGates: undefined,
+      fastaContent: `>${nextName} | Evolved: ${traj.appliedMutations.join(', ')} | Target: ${currentPeptide.targetPathogen}\n${traj.finalSequence}`,
+      optimizationSummary: {
+        applied: true,
+        originalSequence: traj.originalSequence,
+        originalSelectivity: traj.initialMetrics.therapeuticSelectivityIndex,
+        originalHemolysisRisk: traj.initialMetrics.predictedHemolysisRisk,
+        appliedMutations: traj.appliedMutations,
+        notes: `Applied directed evolution (${traj.appliedMutations.join(', ')}): fitness ${traj.initialFitness} -> ${traj.finalFitness}`
+      }
+    };
+
+    set({
+      currentPeptide: updatedPeptide,
+      proteaseReport: traj.finalProtease,
+      helicalWheel: null,
+      chargePhCurve: null,
+      benchmarkReport: null,
+      generation: get().generation + 1,
+      error: null
+    });
+
+    void fetchAuxiliaryAnalytics(updatedPeptide.sequence, updatedPeptide.name, set);
+  },
+
+  selectBatchCandidate: (candidate) => {
+    set({
+      currentPeptide: candidate.peptide,
+      proteaseReport: null,
+      helicalWheel: null,
+      chargePhCurve: null,
+      optimizationResult: null,
+      benchmarkReport: null,
+      generation: get().generation + 1,
+      error: null
+    });
+
+    void fetchAuxiliaryAnalytics(candidate.peptide.sequence, candidate.peptide.name, set);
+  },
+
+  generatePeptide: async () => {
+    const { designParams, selectedPathogen, generationMode } = get();
+    const isBatch = generationMode === 'batch';
+
+    set({
+      isLoading: true,
+      activeOperation: isBatch ? 'batch' : 'generate',
+      error: null,
+      optimizationResult: null
+    });
+
+    const cleanMotif = designParams.lockedMotif?.trim() || undefined;
+    const basePayload = {
+      pathogenId: selectedPathogen.id,
+      sequenceLength: designParams.sequenceLength,
+      poreMechanism: designParams.poreMechanism,
+      safetyThreshold: designParams.safetyThreshold,
+      customPathogenName: designParams.customPathogenName,
+      autoOptimize: designParams.autoOptimize !== false,
+      ...(cleanMotif ? { lockedMotif: cleanMotif } : {})
+    };
+
+    try {
+      if (isBatch) {
+        const data = await postJson<GenerateBatchResponse>(
+          `${BACKEND_URL}/api/generate-batch`,
+          { ...basePayload, provider: 'dual', maxCandidates: 3 },
+          25000
+        );
+
+        const picked = data.bestCandidate?.peptide || data.candidates[0]?.peptide;
+        if (!picked) {
+          throw new Error('Batch screening returned no candidates');
+        }
+
+        set({
+          currentPeptide: picked,
+          batchCandidates: data.candidates,
+          proteaseReport: null,
+          helicalWheel: null,
+          chargePhCurve: null,
+          benchmarkReport: null,
+          generation: get().generation + 1,
+          isLoading: false,
+          activeOperation: 'idle',
+          error: null
+        });
+
+        void fetchAuxiliaryAnalytics(picked.sequence, picked.name, set);
+        return;
+      }
+
+      const payload = { ...basePayload, provider: designParams.provider || 'auto' };
+      let data: GeneratePeptideResponse;
+
+      try {
+        data = await postJson<GeneratePeptideResponse>(
+          `${BACKEND_URL}/api/generate`,
+          payload,
+          18000
+        );
+      } catch (backendErr) {
+        // Fallback to Next.js internal route only on network/reachability errors, not 429/400 API responses
+        if (backendErr instanceof HttpStatusError) {
+          throw backendErr;
+        }
+        data = await postJson<GeneratePeptideResponse>('/api/generate', payload, 15000);
+      }
+
+      if (!data.peptide) {
+        throw new Error('Backend returned empty peptide payload');
       }
 
       set({
         currentPeptide: data.peptide,
+        batchCandidates: [],
+        proteaseReport: null,
+        helicalWheel: null,
+        chargePhCurve: null,
+        benchmarkReport: null,
         generation: get().generation + 1,
         isLoading: false,
+        activeOperation: 'idle',
         error: null
       });
+
+      void fetchAuxiliaryAnalytics(data.peptide.sequence, data.peptide.name, set);
     } catch (err: unknown) {
-      console.warn('API error, falling back to client-side generative model:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown generation error';
-      // Graceful fallback to mock data so UI never breaks
       set({
-        currentPeptide: MOCK_GENERATED_PEPTIDE,
-        generation: get().generation + 1,
+        currentPeptide: get().currentPeptide ?? MOCK_GENERATED_PEPTIDE,
         isLoading: false,
-        error: `${errorMessage} (Demonstrating using verified reference candidate)`
+        activeOperation: 'idle',
+        error: errorMessage
       });
     }
   }

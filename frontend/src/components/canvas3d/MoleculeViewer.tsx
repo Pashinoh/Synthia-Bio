@@ -129,34 +129,66 @@ declare global {
   }
 }
 
+const MOL3D_SCRIPT_SOURCES = [
+  '/vendor/3Dmol-min.js',
+  'https://3Dmol.org/build/3Dmol-min.js'
+] as const;
+
 let mol3dLoadPromise: Promise<void> | null = null;
 
-function ensure3DmolLoaded(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if (window.$3Dmol) return Promise.resolve();
-  if (mol3dLoadPromise) return mol3dLoadPromise;
-
-  mol3dLoadPromise = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-3dmol-cdn="true"]');
+function loadExternalScript(src: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
     if (existing) {
+      if (window.$3Dmol) {
+        resolve();
+        return;
+      }
       existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('Failed to load 3Dmol.js')), {
+      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), {
         once: true
       });
       return;
     }
 
     const script = document.createElement('script');
-    script.src = 'https://3Dmol.org/build/3Dmol-min.js';
+    script.src = src;
     script.async = true;
-    script.dataset['3dmolCdn'] = 'true';
-    script.onload = () => resolve();
+    script.dataset['3dmolSrc'] = src;
+    script.onload = () => {
+      if (window.$3Dmol) {
+        resolve();
+      } else {
+        script.remove();
+        reject(new Error(`Loaded ${src} without $3Dmol global`));
+      }
+    };
     script.onerror = () => {
-      mol3dLoadPromise = null;
-      reject(new Error('Failed to load 3Dmol.js script from CDN'));
+      script.remove();
+      reject(new Error(`Failed to load ${src}`));
     };
     document.head.appendChild(script);
   });
+}
+
+function ensure3DmolLoaded(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (window.$3Dmol) return Promise.resolve();
+  if (mol3dLoadPromise) return mol3dLoadPromise;
+
+  mol3dLoadPromise = (async () => {
+    let lastError: Error | null = null;
+    for (const src of MOL3D_SCRIPT_SOURCES) {
+      try {
+        await loadExternalScript(src);
+        return;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+    mol3dLoadPromise = null;
+    throw lastError ?? new Error('Unable to load 3Dmol.js WebGL engine');
+  })();
 
   return mol3dLoadPromise;
 }
@@ -165,6 +197,8 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = React.memo(({ pdbContent,
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Mol3DViewer | null>(null);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   // Default paused so WebGL doesn't burn 60fps GPU cycles when idle
   const [isSpinning, setIsSpinning] = useState(false);
   const [manualBg, setManualBg] = useState<{ forTheme: ThemeMode; bg: StageBackground } | null>(null);
@@ -199,20 +233,26 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = React.memo(({ pdbContent,
     latestConfigRef.current = { active3dMode, colorScheme, isSpinning, effectiveHex };
   }, [active3dMode, colorScheme, isSpinning, effectiveHex]);
 
-  // 1. Load 3Dmol.js script asynchronously
+  // 1. Load 3Dmol.js script asynchronously (self-hosted local bundle first, CDN fallback)
   useEffect(() => {
     let cancelled = false;
     void ensure3DmolLoaded()
       .then(() => {
-        if (!cancelled) setIsScriptLoaded(true);
+        if (!cancelled) {
+          setLoadError(null);
+          setIsScriptLoaded(true);
+        }
       })
       .catch((err) => {
         console.error(err);
+        if (!cancelled) {
+          setLoadError('Failed to initialize the 3Dmol.js WebGL viewer.');
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadNonce]);
 
   // 2. Build WebGL viewer & attach normalized capture-phase mouse wheel zoom ONLY on pdbContent change
   useEffect(() => {
@@ -227,10 +267,19 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = React.memo(({ pdbContent,
       effectiveHex: bgHex
     } = latestConfigRef.current;
 
-    const viewer = window.$3Dmol.createViewer(container, {
-      backgroundColor: bgHex,
-      hoverDuration: 60
-    });
+    let viewer: Mol3DViewer;
+    try {
+      viewer = window.$3Dmol.createViewer(container, {
+        backgroundColor: bgHex,
+        hoverDuration: 60
+      });
+    } catch (err) {
+      console.error(err);
+      queueMicrotask(() => {
+        setLoadError('WebGL context could not be initialized in this browser.');
+      });
+      return;
+    }
     viewerRef.current = viewer;
 
     viewer.addModel(pdbContent, 'pdb');
@@ -566,19 +615,45 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = React.memo(({ pdbContent,
         title="Drag to rotate, scroll up to zoom in, scroll down to zoom out"
       />
 
-      {!isScriptLoaded && (
+      {(!isScriptLoaded || loadError) && (
         <div
-          className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3"
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-6 text-center"
           style={{ backgroundColor: effectiveHex }}
         >
-          <span className="h-4 w-4 animate-spin border border-accent border-t-transparent" aria-hidden />
-          <p
-            className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
-              isPaper ? 'text-[#525252]' : 'text-[#a8a8a8]'
-            }`}
-          >
-            Initializing WebGL
-          </p>
+          {loadError ? (
+            <>
+              <p
+                className={`max-w-xs font-mono text-[11px] leading-relaxed ${
+                  isPaper ? 'text-[#161616]' : 'text-[#f4f4f4]'
+                }`}
+              >
+                {loadError}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  mol3dLoadPromise = null;
+                  setLoadError(null);
+                  setIsScriptLoaded(false);
+                  setReloadNonce((n) => n + 1);
+                }}
+                className="border border-accent bg-accent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-white transition-colors hover:bg-accent-hover"
+              >
+                Retry WebGL
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="h-4 w-4 animate-spin border border-accent border-t-transparent" aria-hidden />
+              <p
+                className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
+                  isPaper ? 'text-[#525252]' : 'text-[#a8a8a8]'
+                }`}
+              >
+                Initializing WebGL
+              </p>
+            </>
+          )}
         </div>
       )}
 

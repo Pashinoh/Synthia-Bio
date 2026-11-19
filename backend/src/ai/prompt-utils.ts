@@ -24,6 +24,18 @@ export function sanitizeLockedMotif(rawMotif: string | undefined, targetLength: 
   return clean.slice(0, Math.min(12, targetLength - 1));
 }
 
+/**
+ * Sanitize user-controlled input before interpolating into an LLM prompt.
+ * Removes characters that could break out of string context or inject instructions.
+ */
+export function sanitizeForPrompt(value: string): string {
+  return value
+    .replace(/["'\\\n\r`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
+}
+
 export function buildPeptidePrompt(
   pathogen: PathogenProfile,
   params: PeptideDesignParams
@@ -33,8 +45,8 @@ export function buildPeptidePrompt(
     ? `\nScaffold constraint: Include and preserve the exact active motif "${motif}" within the sequence.`
     : '';
 
-  return `Design a ${params.sequenceLength}aa AMP for ${pathogen.name} (${pathogen.scientificName}, Gram-${pathogen.gramType}, WHO ${pathogen.whoPriority}).
-Membrane: ${pathogen.membraneCharacteristics.outerMembraneCharge}mV, ${pathogen.membraneCharacteristics.pgLipidRatio}% PG lipids (${pathogen.membraneCharacteristics.barrierDescription}).
+  return `Design a ${params.sequenceLength}aa AMP for ${sanitizeForPrompt(pathogen.name)} (${sanitizeForPrompt(pathogen.scientificName)}, Gram-${pathogen.gramType}, WHO ${pathogen.whoPriority}).
+Membrane: ${pathogen.membraneCharacteristics.outerMembraneCharge}mV, ${pathogen.membraneCharacteristics.pgLipidRatio}% PG lipids (${sanitizeForPrompt(pathogen.membraneCharacteristics.barrierDescription)}).
 Target charge: +${pathogen.suggestedChargeRange[0]} to +${pathogen.suggestedChargeRange[1]}. Mechanism: ${params.poreMechanism}. Safety: ${params.safetyThreshold}.${motifConstraint}
 Return ONLY JSON.`;
 }

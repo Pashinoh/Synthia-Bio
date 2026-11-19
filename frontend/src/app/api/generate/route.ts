@@ -5,7 +5,11 @@ import { generatePeptideWithGemini } from '@/lib/gemini';
 import { calculateBiophysicalMetrics, getAminoAcidProfile } from '@/lib/bio-engine/calculators';
 import { generateAlphaHelixPDB } from '@/lib/bio-engine/pdb-generator';
 
-const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:5000';
+const BACKEND_URL = (
+  process.env.BACKEND_API_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+  'http://localhost:5000'
+).replace(/\/+$/, '');
 
 export async function POST(request: Request) {
   const body: GeneratePeptideRequest = await request.json();

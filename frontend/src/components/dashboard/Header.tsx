@@ -1,28 +1,21 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useLayoutEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { ThemeMode, usePeptideStore } from '@/store/usePeptideStore';
 
 export const Header: React.FC = React.memo(() => {
   const theme = usePeptideStore((s) => s.theme);
   const setTheme = usePeptideStore((s) => s.setTheme);
+  const initTheme = usePeptideStore((s) => s.initTheme);
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem('synthia-theme');
-    const prefersDark =
-      saved === 'dark' ||
-      (!saved && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
-    const next: ThemeMode = prefersDark ? 'dark' : 'light';
-    document.documentElement.dataset.theme = next;
-    queueMicrotask(() => setTheme(next));
-  }, [setTheme]);
+  useLayoutEffect(() => {
+    initTheme();
+  }, [initTheme]);
 
   const toggleTheme = () => {
     const next: ThemeMode = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    document.documentElement.dataset.theme = next;
-    window.localStorage.setItem('synthia-theme', next);
   };
 
   return (

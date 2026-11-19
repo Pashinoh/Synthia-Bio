@@ -127,6 +127,7 @@ interface PeptideState {
   setActive3dMode: (mode: Display3DMode) => void;
   setColorScheme: (scheme: ColorScheme) => void;
   setTheme: (theme: ThemeMode) => void;
+  initTheme: () => void;
   generatePeptide: () => Promise<void>;
   selectBatchCandidate: (candidate: ScreenedPeptideCandidate) => void;
   validateStability: (sequence: string) => Promise<void>;
@@ -222,7 +223,24 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   setGenerationMode: (mode) => set({ generationMode: mode }),
   setActive3dMode: (mode) => set({ active3dMode: mode }),
   setColorScheme: (scheme) => set({ colorScheme: scheme }),
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.dataset.theme = theme;
+      window.localStorage.setItem('synthia-theme', theme);
+    }
+    set({ theme });
+  },
+
+  initTheme: () => {
+    if (typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem('synthia-theme');
+    const prefersDark =
+      saved === 'dark' ||
+      (!saved && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+    const next: ThemeMode = prefersDark ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    set({ theme: next });
+  },
 
   resetToMock: () => {
     set({

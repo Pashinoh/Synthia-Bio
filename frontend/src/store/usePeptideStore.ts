@@ -23,7 +23,7 @@ import { generateAlphaHelixPDB } from '@/lib/bio-engine/pdb-generator';
 export type Display3DMode = 'cartoon' | 'surface' | 'stick' | 'sphere';
 export type ColorScheme = 'hydrophobicity' | 'charge' | 'spectrum';
 export type ActiveOperation = 'idle' | 'generate' | 'batch' | 'validate' | 'optimize' | 'benchmark';
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark' | 'system';
 export type WorkspaceFocusTarget =
   | 'stage'
   | 'charts'
@@ -127,6 +127,7 @@ interface PeptideState {
   setActive3dMode: (mode: Display3DMode) => void;
   setColorScheme: (scheme: ColorScheme) => void;
   setTheme: (theme: ThemeMode) => void;
+  initTheme: () => void;
   generatePeptide: () => Promise<void>;
   selectBatchCandidate: (candidate: ScreenedPeptideCandidate) => void;
   validateStability: (sequence: string) => Promise<void>;
@@ -194,7 +195,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   error: null,
   active3dMode: 'cartoon',
   colorScheme: 'hydrophobicity',
-  theme: 'light',
+  theme: 'system',
   generation: 1,
   workspaceFocus: null,
   previousComparison: null,
@@ -222,7 +223,45 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   setGenerationMode: (mode) => set({ generationMode: mode }),
   setActive3dMode: (mode) => set({ active3dMode: mode }),
   setColorScheme: (scheme) => set({ colorScheme: scheme }),
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    if (typeof window !== 'undefined') {
+      const effective =
+        theme === 'system'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : theme;
+      document.documentElement.dataset.theme = effective;
+      window.localStorage.setItem('synthia-theme', theme);
+    }
+    set({ theme });
+  },
+
+  initTheme: () => {
+    if (typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem('synthia-theme');
+    const theme: ThemeMode =
+      saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system';
+
+    const effective =
+      theme === 'system'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+        : theme;
+    document.documentElement.dataset.theme = effective;
+    set({ theme });
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => {
+        if (get().theme === 'system') {
+          document.documentElement.dataset.theme = mediaQuery.matches ? 'dark' : 'light';
+        }
+      };
+      mediaQuery.addEventListener('change', handler);
+    }
+  },
 
   resetToMock: () => {
     set({

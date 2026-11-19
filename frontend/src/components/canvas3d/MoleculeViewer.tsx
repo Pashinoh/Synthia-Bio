@@ -221,7 +221,27 @@ export const MoleculeViewer: React.FC<Viewer3DProps> = React.memo(({ pdbContent,
     }))
   );
 
-  const themeDefaultBg: StageBackground = theme === 'dark' ? 'dark' : 'paper';
+  // When theme === 'system', follow the OS color-scheme reactively so the 3D
+  // preview background matches light/dark system preference.
+  //
+  // NOTE: initialize to `false` (light/paper) to match the server-rendered HTML
+  // and avoid a React hydration mismatch. The real value is resolved in
+  // useEffect after hydration; a one-frame light->dark flash is acceptable and
+  // unavoidable without an SSR snapshot of the OS color-scheme.
+  const [systemDark, setSystemDark] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => setSystemDark(mq.matches);
+    // Resolve immediately after mount so the 3D stage follows the OS theme.
+    setSystemDark(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const themeDefaultBg: StageBackground =
+    theme === 'system' ? (systemDark ? 'dark' : 'paper') : theme === 'dark' ? 'dark' : 'paper';
   const effectiveBg: StageBackground =
     manualBg && manualBg.forTheme === theme ? manualBg.bg : themeDefaultBg;
   const effectiveHex = STAGE_BG_HEX[effectiveBg];

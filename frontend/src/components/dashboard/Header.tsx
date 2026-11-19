@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useLayoutEffect } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Monitor, Sun } from 'lucide-react';
 import { ThemeMode, usePeptideStore } from '@/store/usePeptideStore';
 
 export const Header: React.FC = React.memo(() => {
@@ -13,10 +13,27 @@ export const Header: React.FC = React.memo(() => {
     initTheme();
   }, [initTheme]);
 
-  const toggleTheme = () => {
-    const next: ThemeMode = theme === 'dark' ? 'light' : 'dark';
+  const cycleTheme = () => {
+    const next: ThemeMode =
+      theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
     setTheme(next);
   };
+
+  const themeLabel =
+    theme === 'system'
+      ? 'System (follows OS)'
+      : theme === 'dark'
+        ? 'Dark'
+        : 'Light';
+
+  const themeIcon =
+    theme === 'system' ? (
+      <Monitor className="h-3 w-3 text-ink-2" aria-hidden />
+    ) : theme === 'dark' ? (
+      <Sun className="h-3 w-3 text-[#f1c21b]" aria-hidden />
+    ) : (
+      <Moon className="h-3 w-3 text-ink-2" aria-hidden />
+    );
 
   return (
     <header className="sticky top-0 z-50 shrink-0 border-b border-line bg-surface text-ink transition-colors">
@@ -38,21 +55,11 @@ export const Header: React.FC = React.memo(() => {
 
           <button
             type="button"
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={cycleTheme}
+            aria-label={`Switch theme to ${themeLabel}`}
             className="flex h-7 items-center gap-1.5 border border-line bg-sunken px-2 text-ink transition-colors hover:bg-track-hover"
           >
-            {theme === 'dark' ? (
-              <>
-                <Sun className="h-3 w-3 text-[#f1c21b]" aria-hidden />
-                <span>Light</span>
-              </>
-            ) : (
-              <>
-                <Moon className="h-3 w-3 text-ink-2" aria-hidden />
-                <span>Dark</span>
-              </>
-            )}
+            {themeIcon} <span>{themeLabel}</span>
           </button>
 
           <a

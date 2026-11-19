@@ -21,7 +21,7 @@ export const Header: React.FC = React.memo(() => {
 
   const themeLabel =
     theme === 'system'
-      ? 'System (follows OS)'
+      ? 'System'
       : theme === 'dark'
         ? 'Dark'
         : 'Light';

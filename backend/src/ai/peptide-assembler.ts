@@ -1,6 +1,7 @@
 import { calculateBiophysicalMetrics, getAminoAcidProfile } from '../bio-engine/calculators';
 import { generateAlphaHelixPDB } from '../bio-engine/pdb-generator';
 import { analyzeProteaseStability } from '../validators/protease-shield';
+import { randomUUID } from 'crypto';
 import {
   ClosedLoopOptimizationSummary,
   GeneratedPeptide,
@@ -48,7 +49,7 @@ export function assembleGeneratedPeptide(input: AssemblePeptideInput): Generated
   );
 
   return {
-    id: `synthia-${Date.now().toString(36)}${suffix}`,
+    id: `synthia-${randomUUID()}${suffix}`,
     name: rawAiOutput.candidateName,
     sequence: rawAiOutput.sequence,
     length: rawAiOutput.sequence.length,

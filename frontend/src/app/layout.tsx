@@ -17,7 +17,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SynthiaBio — Autonomous De Novo Peptide Designer & 3D Studio",
+  title: "SynthiaBio: Autonomous De Novo Peptide Designer & 3D Studio",
   description: "AI-powered antimicrobial peptide design against WHO priority superbugs with real-time 3D molecular visualization and biophysical validation for the STEM2Connect Hackathon.",
 };
 

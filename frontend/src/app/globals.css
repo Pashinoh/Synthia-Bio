@@ -47,7 +47,7 @@
   --accent: #4589ff;
   --accent-btn: #0f62fe;
   --accent-hover: #0043ce;
-  --accent-soft: #1a2d4d;
+  --accent-soft: #14233c;
 
   --danger: #fa4d56;
   --danger-soft: #3d181c;
@@ -111,6 +111,26 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+a[href],
+button:not(:disabled),
+summary,
+select:not(:disabled),
+label[for],
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="menuitem"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
 }
 
 /* Carbon-style slider: thin neutral track, square accent thumb */

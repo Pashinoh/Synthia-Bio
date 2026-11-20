@@ -43,6 +43,8 @@ Unlike conventional antibiotics that inhibit specific bacterial enzymes, **Antim
 5. **Client-Side Real-Time 3D WebGL Studio (`3Dmol.js`):** Interactive α-helix rendering (`CARTOON`, `SURFACE`, `STICK`, `SPHERE`), dynamic Eisenberg B-factor color legends (`HYDRO`, `CHARGE`, `SPECTRUM`), live residue/atom hover inspection HUD, and an on-canvas `(i)` Structure Anatomy Guide.
 6. **Reactive Workspace UX:** Contextual auto-scroll and temporary `UPDATED` highlight banners, real-time biophysical metric delta readouts in radar charts, and mutated residue diff highlights.
 7. **Lab-Ready Artifact Export:** Generates standardized `.PDB` 3D coordinates, mmCIF (`.cif`), FASTA records, and wet-lab Solid-Phase Peptide Synthesis (SPPS) specification sheets rendered in clean **Times New Roman** (#000000) on white paper.
+8. **Anti-Slop CAD-Style Live Interactive Tour:** Guided 8-step interactive walkthrough featuring precision CAD corner crosshair frames, real-time step progress percentage, direct jump navigation pills (`01`–`08`), biophysical telemetry specification tables, and automated first-time visitor onboarding via `localStorage`.
+9. **Production-Grade Security Architecture:** Backend-for-Frontend (BFF) proxy insulating Gemini/Groq API keys server-side, fail-closed CORS origin whitelist, strict sliding-window rate limiters, input prompt injection sanitization, and production-grade Content-Security-Policy (CSP) headers.
 
 ---
 
@@ -54,7 +56,7 @@ ai-hackaton/
 │   ├── src/app/                     # Studio page layout, 100vh carbon UI & print rules
 │   ├── src/components/canvas3d/     # 3Dmol.js WebGL MoleculeViewer, HUD, & Anatomy guide
 │   ├── src/components/charts/       # BiophysicalRadar (with diffs), HelicalWheel, Titration
-│   ├── src/components/dashboard/    # PathogenSelector, SequenceCard, Batch & Optimization panels
+│   ├── src/components/dashboard/    # PathogenSelector, SequenceCard, InteractiveTour, TutorialModal
 │   ├── src/components/export/       # SynthesisModal (Times New Roman wet-lab SPPS sheet)
 │   └── src/store/usePeptideStore.ts # Central Zustand store with Express API integration
 │
@@ -63,7 +65,7 @@ ai-hackaton/
 │   ├── src/bio-engine/              # Eisenberg consensus calculators, PDB & mmCIF generator
 │   ├── src/validators/              # Protease shield, RFD4 in-silico gates, SPPS feasibility
 │   ├── src/benchmarks/              # Clinical comparison engine (Pexiganan, LL-37, Melittin)
-│   └── tests/                       # 18 automated unit and HTTP integration tests
+│   └── tests/                       # 20 automated unit and HTTP integration tests
 │
 ├── 📚 docs/                         # Documentation & Team Protocols
 │   ├── PAS_HANDOFF_NOTES.md         # Comprehensive handoff notes & test scenarios for Pas
@@ -126,7 +128,7 @@ npm run dev:all
 
 ### 3. Run Production Build & Automated Tests
 ```bash
-# Run backend test suite (18 unit & HTTP tests)
+# Run backend test suite (20 unit & HTTP tests)
 npm run test:be
 
 # Build backend and frontend

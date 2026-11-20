@@ -144,7 +144,7 @@ export const SequenceCard: React.FC<CardProps> = React.memo(({ onOpenProtocol })
   ];
 
   return (
-    <section className="bg-surface">
+    <section data-tour="sequence-card" className="bg-surface">
       <div className="flex items-start justify-between gap-3 p-5 pb-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -166,7 +166,7 @@ export const SequenceCard: React.FC<CardProps> = React.memo(({ onOpenProtocol })
           </p>
         </div>
 
-        <div className="relative shrink-0" ref={menuRef}>
+        <div className="relative shrink-0" ref={menuRef} data-tour="export-spps">
           <button
             ref={buttonRef}
             type="button"

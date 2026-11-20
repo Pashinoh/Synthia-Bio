@@ -3,7 +3,7 @@
 Dokumen ini merangkum seluruh pembaruan **Fase 2: Integrasi Frontend-to-Backend & Peningkatan UX Studio**, sinkronisasi **PR #8 & PR #9**, serta arsitektur fitur interaktif terkini di branch `feat/fe-backend-integration-phase2` agar Pas langsung paham 100% saat memeriksa kode dan demo aplikasi.
 
 > Acuan kontrak JSON API lengkap ada di [`docs/API_CONTRACT.md`](./API_CONTRACT.md).  
-> Seluruh unit test backend (`18/18`) dan build Next.js 16 (`0 errors, 0 warnings`) telah diverifikasi lulus.
+> Seluruh unit test backend (`20/20`) dan build Next.js 16 (`0 errors, 0 warnings`) telah diverifikasi lulus.
 
 ---
 
@@ -120,3 +120,31 @@ npm run start:all
    - Klik tombol **`Export`** $\rightarrow$ **`Lab sheet`**.
    - Perhatikan modal tampil seperti lembar spesifikasi laboratorium berlatar putih dengan font **Times New Roman** dan teks hitam pekat.
    - Klik **`Print / Save PDF`**: jendela cetak browser akan terisolasi bersih hanya menampilkan lembar SPPS tanpa chrome dashboard.
+
+
+---
+
+## 5. Pembaruan Final: Keamanan Produksi F1–F7 & Live Interactive CAD Tour
+
+### A. Penguatan Keamanan Produksi (F1–F7 Audit)
+1. **F1 & F5 Server-Side BFF Proxy (`/api/ai/*`):**
+   - Kunci API Google Gemini (`GEMINI_API_KEY`) dan Groq kini sepenuhnya terisolasi di sisi server (BFF di backend Express `:5000` / route handler Next.js). Browser klien tidak lagi memiliki akses langsung ke API key.
+2. **F2 Fail-Closed CORS:**
+   - Middleware CORS backend kini beroperasi dengan mode *fail-closed* menggunakan *origin whitelist* terverifikasi (`localhost:3000`, `127.0.0.1:3000`, atau domain produksi). Origin tak dikenal langsung ditolak dengan `403 Forbidden`.
+3. **F3 In-Memory Sliding-Window Rate Limiter:**
+   - Pembatasan laju panggilan berbasis sliding-window terdistribusi (maksimum 60 permintaan/menit per IP) untuk mencegah eksploitasi kuota API inferensi AI.
+4. **F4 & F6–F7 Sanitasi Prompt & Header Keamanan:**
+   - Sanitasi input karakter prompt untuk menangkal *prompt injection*, integrasi header ketat CSP, HSTS, X-Content-Type-Options, dan sanitasi payload JSON.
+
+### B. Live Interactive CAD-Style Tour (`InteractiveTour.tsx`)
+1. **Highlight Presisi Tanpa Efek AI-Slop:**
+   - Menghilangkan efek glowing pulsing generik dan ikon bintang AI klise.
+   - Menggunakan frame crosshair presisi di 4 sudut elemen target bergaya CAD/workbench laboratorium.
+2. **Navigasi Cepat (Jump Pills 01–08):**
+   - Pengguna dapat langsung melompat ke step mana pun tanpa harus klik *Next* berulang kali.
+3. **Tabel Telemetri Ilmiah:**
+   - Setiap langkah menampilkan parameter biofisika nyata (*Target Parameters & Indicators*) seperti mV membran outer surface, rotasi WebGL 3D, skala hidrofobik Eisenberg, dan kondisi sintesis microwave SPPS.
+4. **Onboarding Otomatis Pengunjung Pertama:**
+   - Menggunakan deteksi `localStorage.getItem('synthiabio_tour_completed_v1')`. Pengunjung baru otomatis disambut tour setelah 750ms, dan status tersimpan permanen saat tour diselesaikan atau ditutup.
+5. **Lokalisasi Penuh Bahasa Inggris:**
+   - Seluruh antarmuka web, modal panduan (`TutorialModal.tsx`), navigasi header, dan pesan status disajikan dalam bahasa Inggris formal untuk presentasi hackathon global STEM2Connect.

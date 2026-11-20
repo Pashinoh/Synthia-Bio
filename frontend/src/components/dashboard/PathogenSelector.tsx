@@ -10,10 +10,10 @@ export const PathogenSelector: React.FC = React.memo(() => {
   const isLoading = usePeptideStore((s) => s.isLoading);
 
   return (
-    <section className="bg-surface p-4">
+    <section data-tour="pathogen-selector" className="bg-surface p-4">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
-          01 — Target pathogen
+          01 : Target pathogen
         </h2>
         <span className="font-mono text-[11px] text-ink-3">
           {selectedPathogen.membraneCharacteristics.outerMembraneCharge} mV surface

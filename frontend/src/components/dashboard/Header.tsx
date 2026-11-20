@@ -1,10 +1,15 @@
 'use client';
 
 import React, { useLayoutEffect } from 'react';
-import { Moon, Monitor, Sun } from 'lucide-react';
+import { BookOpen, Compass, Moon, Monitor, Sun } from 'lucide-react';
 import { ThemeMode, usePeptideStore } from '@/store/usePeptideStore';
 
-export const Header: React.FC = React.memo(() => {
+interface HeaderProps {
+  onOpenTutorial?: () => void;
+  onStartTour?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = React.memo(({ onOpenTutorial, onStartTour }) => {
   const theme = usePeptideStore((s) => s.theme);
   const setTheme = usePeptideStore((s) => s.setTheme);
   const initTheme = usePeptideStore((s) => s.initTheme);
@@ -49,18 +54,43 @@ export const Header: React.FC = React.memo(() => {
           </span>
         </div>
 
-        <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-2">
-          <span className="hidden items-center gap-2 md:flex">
-            <span className="h-1.5 w-1.5 bg-accent" aria-hidden />
-            <span>WHO Priority AMR Crisis Response</span>
+        <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-2 sm:gap-4">
+          <span className="hidden text-ink-3 md:inline">
+            WHO Priority AMR Research Workbench
           </span>
+
+          {onStartTour && (
+            <button
+              type="button"
+              onClick={onStartTour}
+              aria-label="Start live interactive tour"
+              title="Interactive UI Walkthrough"
+              className="flex h-8 items-center gap-1.5 border border-line bg-sunken px-2.5 text-ink transition-colors hover:bg-track-hover active:bg-track"
+            >
+              <Compass className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              <span>Tour</span>
+            </button>
+          )}
+
+          {onOpenTutorial && (
+            <button
+              type="button"
+              onClick={onOpenTutorial}
+              aria-label="Open SynthiaBio reference guide"
+              title="SynthiaBio Reference Guide"
+              className="flex h-8 items-center gap-1.5 border border-line bg-sunken px-2.5 text-ink transition-colors hover:bg-track-hover active:bg-track"
+            >
+              <BookOpen className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              <span>Guide</span>
+            </button>
+          )}
 
           <button
             type="button"
             onClick={cycleTheme}
             aria-label={`Theme: ${themeLabel}. Switch to ${nextThemeLabel}`}
             title={`Current: ${themeLabel} · Click for ${nextThemeLabel}`}
-            className="flex h-7 items-center gap-1.5 border border-line bg-sunken px-2 text-ink transition-colors hover:bg-track-hover"
+            className="flex h-8 items-center gap-1.5 border border-line bg-sunken px-2.5 text-ink transition-colors hover:bg-track-hover active:bg-track"
           >
             {themeIcon} <span>{themeLabel}</span>
           </button>

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { usePeptideStore } from '@/store/usePeptideStore';
@@ -57,10 +57,10 @@ export const ParameterControls: React.FC = React.memo(() => {
     isLoading && (activeOperation === 'generate' || activeOperation === 'batch');
 
   return (
-    <section className="space-y-3.5 bg-surface p-4">
+    <section data-tour="parameter-controls" className="space-y-3.5 bg-surface p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2">
-          02 — Design constraints
+          02 : Design constraints
         </h2>
         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
           Provider · Auto
@@ -222,6 +222,7 @@ export const ParameterControls: React.FC = React.memo(() => {
       </div>
 
       <button
+        data-tour="generation-actions"
         type="button"
         onClick={() => void generatePeptide()}
         disabled={isLoading}

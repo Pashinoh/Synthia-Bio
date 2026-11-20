@@ -27,13 +27,25 @@ import {
 import { assembleGeneratedPeptide } from './ai/peptide-assembler';
 import { sanitizeLockedMotif } from './ai/prompt-utils';
 import { analyzeProteaseStability } from './validators/protease-shield';
-import { buildCorsOptions, createRateLimiter, securityHeaders } from './middleware/security';
+import {
+  buildCorsOptions,
+  createApiKeyAuth,
+  createApiKeyTagger,
+  createDefaultRateLimitStore,
+  createRateLimiter,
+  RateLimitStore,
+  securityHeaders
+} from './middleware/security';
 
 export interface AppOptions {
   allowedOrigins?: string[];
+  apiKey?: string;
+  requireAuthInProduction?: boolean;
+  trustProxyHops?: number;
   rateLimitWindowMs?: number;
   rateLimitMax?: number;
   aiRateLimitMax?: number;
+  rateLimitStore?: RateLimitStore;
 }
 
 const VALID_PROVIDERS = new Set<AIProviderPreference>(['auto', 'gemini', 'groq', 'dual']);
@@ -43,6 +55,11 @@ const VALID_THRESHOLDS = new Set<SafetyThreshold>(['high-selectivity', 'balanced
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : fallback;
+}
+
+function parseNonNegativeInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : fallback;
 }
 
 function parseValidSequence(
@@ -137,31 +154,47 @@ export function createApp(options: AppOptions = {}): express.Express {
   const windowMs = options.rateLimitWindowMs ?? parsePositiveInt(process.env.RATE_LIMIT_WINDOW_MS, 60_000);
   const generalMax = options.rateLimitMax ?? parsePositiveInt(process.env.RATE_LIMIT_MAX, 60);
   const aiMax = options.aiRateLimitMax ?? parsePositiveInt(process.env.AI_RATE_LIMIT_MAX, 15);
+  const trustProxyHops =
+    options.trustProxyHops ?? parseNonNegativeInt(process.env.TRUST_PROXY_HOPS, 1);
+  const rateLimitStore = options.rateLimitStore ?? createDefaultRateLimitStore();
+  const configuredApiKey = (
+    options.apiKey !== undefined ? options.apiKey : process.env.SYNTHIA_API_KEY || ''
+  ).trim();
 
-  app.set('trust proxy', 1);
+  app.set('trust proxy', trustProxyHops);
   app.disable('x-powered-by');
   app.use(securityHeaders);
   app.use(cors(buildCorsOptions(options.allowedOrigins)));
   app.use(express.json({ limit: '64kb' }));
 
+  const apiKeyTagger = createApiKeyTagger({ apiKey: options.apiKey });
+  const apiKeyAuth = createApiKeyAuth({
+    apiKey: options.apiKey,
+    requireInProduction: options.requireAuthInProduction
+  });
   const generalApiLimiter = createRateLimiter({
     windowMs,
     maxRequests: generalMax,
-    keyPrefix: 'api'
+    keyPrefix: 'api',
+    store: rateLimitStore
   });
   const aiGenerationLimiter = createRateLimiter({
     windowMs,
     maxRequests: aiMax,
-    keyPrefix: 'generate'
+    keyPrefix: 'generate',
+    store: rateLimitStore
   });
 
-  app.use('/api', generalApiLimiter);
+  // Tag valid BFF keys first, rate-limit all /api traffic (blocks key brute-force), then enforce auth
+  app.use('/api', apiKeyTagger, generalApiLimiter, apiKeyAuth);
 
-  // 1. Health Check Endpoint (exempt from API rate limits for platform health probes)
+  // 1. Health Check Endpoint (exempt from API auth & rate limits for platform health probes)
   app.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: 'online',
       service: 'SynthiaBio AI & Biophysical Engine',
+      authConfigured: Boolean(configuredApiKey),
+      rateLimitStore: rateLimitStore.kind,
       geminiConfigured: !!process.env.GEMINI_API_KEY,
       groqConfigured: !!process.env.GROQ_API_KEY,
       endpoints: [

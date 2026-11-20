@@ -28,44 +28,46 @@ No hardcoded secrets, command injection, path traversal, unsafe deserialization,
 
 ## 3. Findings
 
-### F1 — No authentication or authorization on any API endpoint (HIGH)
+### F1 — No authentication or authorization on any API endpoint (HIGH) — FIXED
+
+**Status:** FIXED — backend API key middleware + Next.js server-only BFF proxy (`/api/backend/*`).
 
 **Boundary:** API entry — unauthenticated network caller → backend Express `:5000`  
-**Source:** `backend/src/app.ts:161-372` — all 7 route registrations have no auth middleware  
-**Result:** Any caller can invoke `POST /api/generate`, `/api/generate-batch`, `/api/optimize`, `/api/validate-stability`, `/api/benchmarks/compare` without identity. This consumes the operator's paid LLM API quota with no per-user accounting, and there is no user/session isolation to fall back on.
+**Source:**
+- `backend/src/middleware/security.ts` (`createApiKeyAuth`, `createApiKeyTagger` using SHA-256 + `crypto.timingSafeEqual`)
+- `backend/src/app.ts` (`app.use('/api', apiKeyTagger, generalApiLimiter, apiKeyAuth)`, `/health` exempt)
+- `frontend/src/app/api/backend/[...path]/route.ts` (allowlisted same-origin BFF proxy injecting server-only `SYNTHIA_API_KEY`)
+- `frontend/src/store/usePeptideStore.ts` (routed through `/api/backend/*` instead of exposing secrets or calling Express cross-origin)
 
-**Severity:** HIGH — a security control (identity) is entirely absent; real consequence is operator cost exhaustion and no access boundary.
-
-**Recommended fix:** Add an authentication middleware (API key or session) at the `createApp` entry point, applied to all state-changing routes except `/health`. Require `ALLOWED_ORIGINS` to be set in production.
+**Fix applied:** Added constant-time `X-API-Key` / `Authorization: Bearer` authentication on all `/api/*` routes. In `NODE_ENV=production`, missing `SYNTHIA_API_KEY` fails closed with `503 Service Unavailable`. Browser requests go exclusively through Next.js same-origin BFF routes (enforcing `Origin` check + route allowlist) which attach `SYNTHIA_API_KEY` server-side so no secret ever ships in client bundles.  
+**Severity:** HIGH — resolved.
 
 ---
 
-### F2 — CORS allows all origins when `ALLOWED_ORIGINS` is unset (MEDIUM)
+### F2 — CORS allows all origins when `ALLOWED_ORIGINS` is unset (MEDIUM) — FIXED
+
+**Status:** FIXED — fail-closed CORS allowlist.
 
 **Boundary:** CORS — browser origin → backend  
-**Source:** `backend/src/middleware/security.ts:29-57` — when `origins.length === 0`, returns `{ origin: true }`, reflecting any `Origin` header  
-**Result:** In local dev or any deployment where `ALLOWED_ORIGINS` is not set, any origin can make cross-origin requests to the API. Combined with F1 (no auth), a malicious site could have a visitor's browser call the SynthiaBio API directly and drain quota.
-
-**Severity:** MEDIUM — cross-origin access to an unauthenticated API that consumes paid LLM quota.
-
-**Recommended fix:** Require `ALLOWED_ORIGINS` to be set; fail closed (empty allowed set / reject) when unset instead of allowing all origins.
+**Source:** `backend/src/middleware/security.ts` (`buildCorsOptions`)  
+**Fix applied:** Removed the permissive `{ origin: true }` fallback when `ALLOWED_ORIGINS` is empty. Cross-origin browser requests are now rejected (no `Access-Control-Allow-Origin` header) unless explicitly listed in `ALLOWED_ORIGINS` (trailing slashes normalized). Non-browser / server-to-server calls without an `Origin` header (such as Next.js BFF proxy, `curl`, and healthchecks) remain permitted.  
+**Severity:** MEDIUM — resolved.
 
 ---
 
-### F3 — In-memory rate limiter is bypassable (MEDIUM)
+### F3 — In-memory rate limiter is bypassable (MEDIUM) — FIXED
+
+**Status:** FIXED — exact sliding-window rate limiter + pluggable Upstash Redis distributed store + authenticated proxy IP isolation.
 
 **Boundary:** Rate limiting — client IP → backend AI endpoints  
-**Source:** `backend/src/middleware/security.ts:63-110` — fixed-window in-memory `Map`, keyed by `req.ip`  
-**Issues:**
-- In-memory only: no distributed state; scaling behind multiple instances breaks the limit
-- Keyed by `req.ip`: behind a proxy, all clients share one IP; IP spoofing evades individual limits
-- Fixed window allows burst at window edges
+**Source:** `backend/src/middleware/security.ts` (`InMemorySlidingWindowStore`, `UpstashRedisRateLimitStore`, `createDefaultRateLimitStore`, `createRateLimiter`), `backend/src/app.ts` (`TRUST_PROXY_HOPS`)  
+**Fix applied:**
+- Replaced fixed-window counting with an exact **sliding-window timestamp algorithm** (`InMemorySlidingWindowStore`) eliminating window-boundary burst exploits.
+- Added zero-dependency distributed **`UpstashRedisRateLimitStore`** (activated automatically when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured, with graceful fallback to in-memory sliding window on transient network failure).
+- Added configurable `TRUST_PROXY_HOPS` and authenticated BFF `X-Client-IP` forwarding (honored only when `apiKeyAuthenticated === true`, preventing unauthenticated IP spoofing while keeping per-end-user rate limiting behind the Next.js proxy).
+- Placed `generalApiLimiter` ahead of auth rejection so invalid-key brute-force attempts are also rate-limited (`429`).
 
-**Result:** An attacker can exceed the intended AI rate limits (`AI_RATE_LIMIT_MAX=15` default), exhausting the operator's Gemini/Groq API quota and potentially incurring costs.
-
-**Severity:** MEDIUM — availability/cost impact on a shared operator resource.
-
-**Recommended fix:** Use a distributed rate-limit store (e.g., Redis) or document that production requires a reverse-proxy rate limit in front of the backend.
+**Severity:** MEDIUM — resolved.
 
 ---
 
@@ -150,17 +152,15 @@ No hardcoded secrets, command injection, path traversal, unsafe deserialization,
 
 ## 6. Recommended Fix Priority
 
-1. **Add authentication** (F1) — without it, all other controls are moot
-2. **Require `ALLOWED_ORIGINS`; fail closed when unset** (F2)
-3. **Distributed or proxy-level rate limiting** (F3) — protect operator LLM quota
+**All findings (F1–F7) are now resolved in source:**
 
-**Done:** **Sanitize user input in AI prompts** (F4) — fixed on branch `fix/random-peptide-ids`.
-
-**Done:** **Move frontend Gemini client to server-only** (F5) — fixed on branch `fix/random-peptide-ids`.
-
-**Done:** **Add CSP/HSTS headers** (F7) — fixed on branch `fix/security-headers-csp-hsts`.
-
-**Done:** **Use random IDs** (F6) — fixed on branch `fix/random-peptide-ids`.
+- **Done:** **Add API authentication + Next.js server-only BFF proxy** (F1)
+- **Done:** **Fail-closed CORS when `ALLOWED_ORIGINS` is unset** (F2)
+- **Done:** **Sliding-window rate limiting + pluggable Upstash Redis distributed store + proxy IP isolation** (F3)
+- **Done:** **Sanitize user input in AI prompts** (F4) — fixed in PR #16 (`9507136`).
+- **Done:** **Move frontend Gemini client to server-only** (F5) — fixed in PR #16 (`9507136`).
+- **Done:** **Use random UUID peptide IDs** (F6) — fixed in PR #16 (`c94834e`) & Next.js fallback route.
+- **Done:** **Add CSP/HSTS headers** (F7) — fixed in PR #15 (`e1baa79`).
 
 ---
 

@@ -261,3 +261,137 @@ test('Server handles CORS allowlist, malformed JSON (400), and unknown routes (4
   assert.equal(missing.status, 404);
   assert.equal(missing.body.success, false);
 });
+
+test('F1: API key authentication protects /api/* while leaving /health accessible and fails closed in production', async () => {
+  const secret = 'synthia-super-secret-test-key-2026';
+  const authedApp = createApp({
+    apiKey: secret,
+    rateLimitWindowMs: 60_000,
+    rateLimitMax: 20,
+    aiRateLimitMax: 5
+  });
+
+  const authedServer = await new Promise<http.Server>((resolve) => {
+    const s = authedApp.listen(0, '127.0.0.1', () => resolve(s));
+  });
+
+  try {
+    const { port } = authedServer.address() as AddressInfo;
+    const url = `http://127.0.0.1:${port}`;
+
+    // /health remains open for uptime probes and reports authConfigured=true
+    const healthRes = await fetch(`${url}/health`);
+    const healthBody = (await healthRes.json()) as {
+      status: string;
+      authConfigured: boolean;
+      rateLimitStore: string;
+    };
+    assert.equal(healthRes.status, 200);
+    assert.equal(healthBody.authConfigured, true);
+    assert.equal(healthBody.rateLimitStore, 'memory-sliding-window');
+    assert.equal(
+      healthRes.headers.get('content-security-policy'),
+      "default-src 'none'; frame-ancestors 'none'"
+    );
+
+    // Missing or wrong API key -> 401
+    const noKeyRes = await fetch(`${url}/api/pathogens`);
+    assert.equal(noKeyRes.status, 401);
+
+    const wrongKeyRes = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': 'wrong-key' }
+    });
+    assert.equal(wrongKeyRes.status, 401);
+
+    // Valid X-API-Key -> 200
+    const xApiKeyRes = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': secret }
+    });
+    assert.equal(xApiKeyRes.status, 200);
+
+    // Valid Bearer token -> 200
+    const bearerRes = await fetch(`${url}/api/benchmarks`, {
+      headers: { Authorization: `Bearer ${secret}` }
+    });
+    assert.equal(bearerRes.status, 200);
+  } finally {
+    await new Promise<void>((resolve, reject) => authedServer.close((e) => (e ? reject(e) : resolve())));
+  }
+
+  // Production fail-closed when SYNTHIA_API_KEY is unset
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevKey = process.env.SYNTHIA_API_KEY;
+  process.env.NODE_ENV = 'production';
+  delete process.env.SYNTHIA_API_KEY;
+
+  const prodApp = createApp({ allowedOrigins: [] });
+  const prodServer = await new Promise<http.Server>((resolve) => {
+    const s = prodApp.listen(0, '127.0.0.1', () => resolve(s));
+  });
+
+  try {
+    const { port } = prodServer.address() as AddressInfo;
+    const prodRes = await fetch(`http://127.0.0.1:${port}/api/pathogens`);
+    assert.equal(prodRes.status, 503);
+  } finally {
+    await new Promise<void>((resolve, reject) => prodServer.close((e) => (e ? reject(e) : resolve())));
+    if (prevNodeEnv !== undefined) process.env.NODE_ENV = prevNodeEnv;
+    else delete process.env.NODE_ENV;
+    if (prevKey !== undefined) process.env.SYNTHIA_API_KEY = prevKey;
+  }
+});
+
+test('F2 & F3: CORS fails closed when ALLOWED_ORIGINS is empty and sliding-window limiter prevents boundary bursts', async () => {
+  const secret = 'bff-proxy-secret';
+  const strictApp = createApp({
+    allowedOrigins: [],
+    apiKey: secret,
+    rateLimitWindowMs: 250,
+    rateLimitMax: 2,
+    aiRateLimitMax: 2
+  });
+
+  const strictServer = await new Promise<http.Server>((resolve) => {
+    const s = strictApp.listen(0, '127.0.0.1', () => resolve(s));
+  });
+
+  try {
+    const { port } = strictServer.address() as AddressInfo;
+    const url = `http://127.0.0.1:${port}`;
+
+    // F2: Cross-origin request is rejected (no ACAO header) when allowlist is empty
+    const crossOriginRes = await fetch(`${url}/health`, {
+      headers: { Origin: 'https://evil-site.example' }
+    });
+    assert.equal(crossOriginRes.headers.get('access-control-allow-origin'), null);
+
+    // F3: Sliding window + authenticated BFF X-Client-IP per-end-user bucketing
+    const u1a = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': secret, 'X-Client-IP': '203.0.113.10' }
+    });
+    const u1b = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': secret, 'X-Client-IP': '203.0.113.10' }
+    });
+    const u1c = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': secret, 'X-Client-IP': '203.0.113.10' }
+    });
+    assert.equal(u1a.status, 200);
+    assert.equal(u1b.status, 200);
+    assert.equal(u1c.status, 429);
+
+    // Distinct end-user IP via authenticated BFF is NOT blocked by user 1
+    const u2a = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': secret, 'X-Client-IP': '203.0.113.11' }
+    });
+    assert.equal(u2a.status, 200);
+
+    // After sliding window expires (280ms > 250ms), user 1 is permitted again
+    await new Promise((r) => setTimeout(r, 280));
+    const u1d = await fetch(`${url}/api/pathogens`, {
+      headers: { 'X-API-Key': secret, 'X-Client-IP': '203.0.113.10' }
+    });
+    assert.equal(u1d.status, 200);
+  } finally {
+    await new Promise<void>((resolve, reject) => strictServer.close((e) => (e ? reject(e) : resolve())));
+  }
+});

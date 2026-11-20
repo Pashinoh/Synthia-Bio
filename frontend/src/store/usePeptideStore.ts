@@ -61,9 +61,26 @@ function toComparisonSnapshot(peptide: GeneratedPeptide | null): PreviousCompari
   };
 }
 
-const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000'
-).replace(/\/+$/, '');
+// Same-origin Next.js BFF proxy: injects server-only SYNTHIA_API_KEY and avoids direct cross-origin exposure
+const API_BASE = '/api/backend';
+
+let systemThemeListenerAttached = false;
+
+function resolveEffectiveTheme(theme: ThemeMode): 'light' | 'dark' {
+  if (theme !== 'system') return theme;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function ensureSystemThemeListener(getTheme: () => ThemeMode): void {
+  if (systemThemeListenerAttached) return;
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  mediaQuery.addEventListener('change', () => {
+    if (getTheme() === 'system') {
+      document.documentElement.dataset.theme = mediaQuery.matches ? 'dark' : 'light';
+    }
+  });
+  systemThemeListenerAttached = true;
+}
 
 class HttpStatusError extends Error {
   status: number;
@@ -149,9 +166,9 @@ async function fetchAuxiliaryAnalytics(
       proteaseReport: ProteaseStabilityReport;
       helicalWheel: HelicalWheelProjection;
       chargePhCurve: ChargePhCurve;
-    }>(`${BACKEND_URL}/api/validate-stability`, { sequence }, 10000),
+    }>(`${API_BASE}/validate-stability`, { sequence }, 10000),
     postJson<CompareBenchmarksResponse>(
-      `${BACKEND_URL}/api/benchmarks/compare`,
+      `${API_BASE}/benchmarks/compare`,
       { sequence, candidateName },
       10000
     )
@@ -225,14 +242,9 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
   setColorScheme: (scheme) => set({ colorScheme: scheme }),
   setTheme: (theme) => {
     if (typeof window !== 'undefined') {
-      const effective =
-        theme === 'system'
-          ? window.matchMedia('(prefers-color-scheme: dark)').matches
-            ? 'dark'
-            : 'light'
-          : theme;
-      document.documentElement.dataset.theme = effective;
+      document.documentElement.dataset.theme = resolveEffectiveTheme(theme);
       window.localStorage.setItem('synthia-theme', theme);
+      ensureSystemThemeListener(() => get().theme);
     }
     set({ theme });
   },
@@ -243,24 +255,9 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     const theme: ThemeMode =
       saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system';
 
-    const effective =
-      theme === 'system'
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light'
-        : theme;
-    document.documentElement.dataset.theme = effective;
+    document.documentElement.dataset.theme = resolveEffectiveTheme(theme);
     set({ theme });
-
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      const handler = () => {
-        if (get().theme === 'system') {
-          document.documentElement.dataset.theme = mediaQuery.matches ? 'dark' : 'light';
-        }
-      };
-      mediaQuery.addEventListener('change', handler);
-    }
+    ensureSystemThemeListener(() => get().theme);
   },
 
   resetToMock: () => {
@@ -290,7 +287,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
         proteaseReport: ProteaseStabilityReport;
         helicalWheel: HelicalWheelProjection;
         chargePhCurve: ChargePhCurve;
-      }>(`${BACKEND_URL}/api/validate-stability`, { sequence });
+      }>(`${API_BASE}/validate-stability`, { sequence });
 
       set({
         proteaseReport: data.proteaseReport,
@@ -322,7 +319,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     set({ isLoading: true, activeOperation: 'benchmark', error: null });
     try {
       const data = await postJson<CompareBenchmarksResponse>(
-        `${BACKEND_URL}/api/benchmarks/compare`,
+        `${API_BASE}/benchmarks/compare`,
         { sequence, candidateName: candidateName || get().currentPeptide?.name }
       );
       set({
@@ -349,7 +346,7 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     set({ isLoading: true, activeOperation: 'optimize', error: null });
     try {
       const cleanMotif = designParams.lockedMotif?.trim() || undefined;
-      const data = await postJson<OptimizePeptideResponse>(`${BACKEND_URL}/api/optimize`, {
+      const data = await postJson<OptimizePeptideResponse>(`${API_BASE}/optimize`, {
         sequence: currentPeptide.sequence,
         pathogenId: selectedPathogen.id,
         rounds,
@@ -477,9 +474,9 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
     try {
       if (isBatch) {
         const data = await postJson<GenerateBatchResponse>(
-          `${BACKEND_URL}/api/generate-batch`,
+          `${API_BASE}/generate-batch`,
           { ...basePayload, provider: 'dual', maxCandidates: 3 },
-          25000
+          26000
         );
 
         const picked = data.bestCandidate?.peptide || data.candidates[0]?.peptide;
@@ -516,13 +513,13 @@ export const usePeptideStore = create<PeptideState>((set, get) => ({
 
       try {
         data = await postJson<GeneratePeptideResponse>(
-          `${BACKEND_URL}/api/generate`,
+          `${API_BASE}/generate`,
           payload,
-          18000
+          20000
         );
       } catch (backendErr) {
-        // Fallback to Next.js internal route only on network/reachability errors, not 429/400 API responses
-        if (backendErr instanceof HttpStatusError) {
+        // Fallback to Next.js internal route only on network/reachability errors (or proxy 502), not 400/401/429
+        if (backendErr instanceof HttpStatusError && backendErr.status !== 502) {
           throw backendErr;
         }
         data = await postJson<GeneratePeptideResponse>('/api/generate', payload, 15000);

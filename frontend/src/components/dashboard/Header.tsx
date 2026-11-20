@@ -13,26 +13,28 @@ export const Header: React.FC = React.memo(() => {
     initTheme();
   }, [initTheme]);
 
+  const nextTheme: ThemeMode =
+    theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
+
   const cycleTheme = () => {
-    const next: ThemeMode =
-      theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
-    setTheme(next);
+    setTheme(nextTheme);
   };
 
-  const themeLabel =
-    theme === 'system'
-      ? 'System'
-      : theme === 'dark'
-        ? 'Dark'
-        : 'Light';
+  const labelMap: Record<ThemeMode, string> = {
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System'
+  };
+  const themeLabel = labelMap[theme];
+  const nextThemeLabel = labelMap[nextTheme];
 
   const themeIcon =
     theme === 'system' ? (
       <Monitor className="h-3 w-3 text-ink-2" aria-hidden />
     ) : theme === 'dark' ? (
-      <Sun className="h-3 w-3 text-[#f1c21b]" aria-hidden />
-    ) : (
       <Moon className="h-3 w-3 text-ink-2" aria-hidden />
+    ) : (
+      <Sun className="h-3 w-3 text-[#d97706]" aria-hidden />
     );
 
   return (
@@ -56,7 +58,8 @@ export const Header: React.FC = React.memo(() => {
           <button
             type="button"
             onClick={cycleTheme}
-            aria-label={`Switch theme to ${themeLabel}`}
+            aria-label={`Theme: ${themeLabel}. Switch to ${nextThemeLabel}`}
+            title={`Current: ${themeLabel} · Click for ${nextThemeLabel}`}
             className="flex h-7 items-center gap-1.5 border border-line bg-sunken px-2 text-ink transition-colors hover:bg-track-hover"
           >
             {themeIcon} <span>{themeLabel}</span>

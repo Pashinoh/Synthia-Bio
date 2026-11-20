@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { GeneratePeptideRequest, GeneratePeptideResponse } from '@/types/peptide';
 import { WHO_PATHOGENS, DEFAULT_PATHOGEN } from '@/lib/pathogens';
@@ -133,14 +134,28 @@ function adjustSequenceLength(seq: string, targetLength: number): string {
   return seq;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const origin = request.headers.get('origin');
+  if (origin && origin.replace(/\/+$/, '') !== request.nextUrl.origin.replace(/\/+$/, '')) {
+    return NextResponse.json(
+      { success: false, error: 'Forbidden: cross-origin request rejected' },
+      { status: 403 }
+    );
+  }
+
   const body: GeneratePeptideRequest = await request.json();
 
-  // 1. Try forwarding to dedicated Backend server if online
+  // 1. Try forwarding to dedicated Backend server if online (attaching server-side API key)
   try {
+    const forwardHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    const apiKey = process.env.SYNTHIA_API_KEY?.trim();
+    if (apiKey) {
+      forwardHeaders['X-API-Key'] = apiKey;
+    }
+
     const beRes = await fetch(`${BACKEND_URL}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: forwardHeaders,
       body: JSON.stringify(body),
       // Allow multi-provider AI + closed-loop optimization time to complete cleanly
       signal: AbortSignal.timeout(15000)
@@ -174,7 +189,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       peptide: {
-        id: `synthia-${Date.now().toString(36)}`,
+        id: `synthia-${randomUUID()}`,
         name: rawAiOutput.candidateName,
         sequence: rawAiOutput.sequence,
         length: rawAiOutput.sequence.length,

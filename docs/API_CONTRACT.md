@@ -5,14 +5,22 @@ Content-Type: `application/json` (max body `64kb`)
 
 ---
 
-## Security, CORS & Rate Limiting
+## Security, Authentication, CORS & Rate Limiting
 
-- **CORS (`ALLOWED_ORIGINS`):** Comma-separated list of allowed browser origins (e.g., `https://synthia-bio.vercel.app,http://localhost:3000`). Leave unset in local dev to allow any origin. Requests without an `Origin` header (`curl`, server-to-server, healthchecks) are permitted.
-- **Rate Limits (`/api/*`):**
-  - General API routes: `RATE_LIMIT_MAX` (default `60` requests / `RATE_LIMIT_WINDOW_MS`, default `60000` ms per IP).
-  - AI synthesis routes (`POST /api/generate`, `POST /api/generate-batch`): `AI_RATE_LIMIT_MAX` (default `15` requests / window per IP).
-  - `GET /health` is exempt for uptime probes.
+- **Authentication (`SYNTHIA_API_KEY`):** All `/api/*` routes accept `X-API-Key: <secret>` or `Authorization: Bearer <secret>` verified with constant-time SHA-256 comparison (`crypto.timingSafeEqual`).
+  - When `SYNTHIA_API_KEY` is configured, missing/invalid credentials return **`401 Unauthorized`**.
+  - When `NODE_ENV=production` and `SYNTHIA_API_KEY` is unset, `/api/*` fails closed with **`503 Service Unavailable`**.
+  - The Next.js frontend routes browser traffic through the same-origin BFF proxy (`/api/backend/*`), injecting `SYNTHIA_API_KEY` server-side so no API key is ever shipped in client JS.
+  - `GET /health` remains exempt for platform health probes.
+- **CORS (`ALLOWED_ORIGINS`):** Comma-separated list of allowed browser origins (e.g., `https://synthia-bio.vercel.app,http://localhost:3000`). **Fails closed** when unset (rejects cross-origin browser requests). Server-to-server requests without an `Origin` header (Next.js BFF proxy, `curl`, healthchecks) are permitted.
+- **Sliding-Window Rate Limits (`/api/*`):**
+  - Exact sliding-window rate limiter eliminating fixed-window boundary bursts.
+  - Automatically switches to distributed Upstash Redis REST storage when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (with graceful fallback to in-memory sliding window).
+  - General API routes: `RATE_LIMIT_MAX` (default `60` requests / `RATE_LIMIT_WINDOW_MS`, default `60000` ms per client IP).
+  - AI synthesis routes (`POST /api/generate`, `POST /api/generate-batch`): `AI_RATE_LIMIT_MAX` (default `15` requests / window per client IP).
+  - `TRUST_PROXY_HOPS` (default `1`) configures Express `trust proxy`; authenticated Next.js BFF calls forward per-user `X-Client-IP`.
 - **Rate Limit Headers:** `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` (and `Retry-After` on `429`).
+- **Hardening Headers:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, and HTTPS-only `Strict-Transport-Security`.
 
 ---
 

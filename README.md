@@ -9,6 +9,7 @@
 
 **STEM2Connect AI Hackathon 2026 Submission**  
 - **Primary Track:** Healthcare / Scientific Research  
+- **Live Demo / Web App:** [synthia-bio.vercel.app](https://synthia-bio.vercel.app/)  
 - **Submission Platform:** [Devpost Submission](https://stem2connect-online-hackathon.devpost.com/)  
 - **Demo Video:** [YouTube Link](https://youtu.be/dTcmVQYO10o)  
 - **Documentation:** [Handoff Notes](./docs/PAS_HANDOFF_NOTES.md) | [API Contract](./docs/API_CONTRACT.md) | [Full Blueprint](./docs/synthia-bio-master-blueprint.md)  

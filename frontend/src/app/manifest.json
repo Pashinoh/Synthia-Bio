@@ -1,0 +1,16 @@
+{
+  "name": "SynthiaBio: Autonomous De Novo Peptide Designer",
+  "short_name": "SynthiaBio",
+  "description": "AI-powered antimicrobial peptide design against WHO priority superbugs with real-time 3D molecular studio.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F17",
+  "theme_color": "#00F0FF",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
